@@ -360,23 +360,39 @@ Every mutating action writes an `AuditLog` row.
 
 ## 9. GitHub repository
 
-**Private**, under `sphearsravi`. It will carry a payments integration, the database
-schema and customer-data handling — none of that belongs in a public repo. (The `rent`
-repo is public; that was a deliberate scrubbed snapshot. This one should not be.)
+**<https://github.com/sphearsravi/nexuskw> — public**, decided 2026-10-20.
 
-```bash
-gh repo create sphearsravi/nexus --private \
-  --description "Nexus — bilingual PDF bookstore (ASP.NET Core 8, Tap Payments)"
-```
+A private repo was the original recommendation, but on a free account GitHub refuses
+Actions runners, branch protection *and* secret scanning for private repositories, which
+left the whole pipeline inert. Public gets all three at no cost. The trade is that the
+source is readable: business logic, admin routes and the download-token scheme are all
+visible, so **none of it may rely on being secret**. That is the right discipline anyway —
+but it makes the rules below load-bearing rather than advisory.
+
+What public means in practice:
+
+- **No secret ever enters the repository.** Tap keys, the DB connection string and the
+  FTP password live in App Pool environment variables on the server and in GitHub Actions
+  secrets. A key in a commit means rotating the key, not deleting the commit.
+- **Authorisation is enforced server-side, every time.** Knowing an admin URL or a
+  download-token format must get an attacker nothing.
+- **Download tokens are unguessable** (GUID) and checked against state, expiry and count
+  on every request.
+- Before go-live, re-read the diff of anything touching payments as though an attacker
+  were reading it too, because they can.
+
+Settings now applied:
 
 - **Branching:** trunk-based. `main` always deployable; short-lived `feat/*` and `fix/*`
-  branches merge by PR.
-- **Protection on `main`:** no direct pushes, PR required, CI must pass, branch up to
-  date, no force-push.
-- **`.gitignore`:** `bin/ obj/ App_Data/ *.user appsettings.*.local.json docs/DEPLOY_CREDENTIALS.md`
-- **Secret scanning + push protection on** from day one. A Tap secret key in a commit
-  means rotating the key, not deleting the commit.
-- Issue templates and a project board with the Phase 0–8 milestones above.
+  branches merged by PR.
+- **Protection on `main`:** the three CI checks (`Build and test`, `Secret scan`,
+  `Dependency audit`) must pass, branch must be up to date, conversations resolved, no
+  force-push, no deletion. Because required status checks apply to direct pushes too,
+  **work goes through a branch and a PR from Phase 1 onward.**
+- **Secret scanning + push protection: enabled.** Plus a pinned `gitleaks` full-history
+  scan in CI as a second line of defence.
+- **`.gitignore`:** `bin/ obj/ publish/ App_Data/ *.user appsettings.*.local.json docs/DEPLOY_CREDENTIALS.md`
+- Issue templates and a project board with the Phase 0–9 milestones above.
 
 ---
 
