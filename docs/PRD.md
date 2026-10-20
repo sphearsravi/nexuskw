@@ -10,12 +10,18 @@ As of 2026-10-20.
 
 ## 1. Summary
 
-Nexus sells finance and business books as PDFs to readers in Kuwait and the
-UAE, in Arabic and English, paid through Tap and delivered as an instant
-download. There is no physical product, no shipping and no inventory.
+Nexus sells finance and business books as PDFs to readers in **Kuwait**, in
+Arabic and English, paid through Tap and delivered as an instant download.
+There is no physical product, no shipping and no inventory.
+
+> **Scope, decided 2026-10-20: Kuwait only for now.** One country, one currency
+> (KWD), no VAT, KNET first. The UAE and AED are deferred, not abandoned — see
+> §4. This takes FX conversion, dual-currency pricing, a VAT engine and a
+> currency switcher out of v1: roughly a week of build, and a permanent
+> reduction in the number of ways money can be wrong.
 
 Shipped means four things work together: a storefront that reads equally well
-in both languages, Tap taking real money in KWD and AED, every paid order
+in both languages, Tap taking real money in KWD, every paid order
 producing a watermarked PDF behind an expiring link, and an operator who can
 add a book without calling a developer.
 
@@ -27,7 +33,7 @@ form is decoration.
 
 ## 2. Problem and opportunity
 
-A Gulf reader who wants a book on Boursa Kuwait dividends or Murabaha
+A Kuwaiti reader who wants a book on Boursa Kuwait dividends or Murabaha
 structuring is poorly served. International stores carry little Gulf-specific
 finance writing, rarely sell in KWD, and almost never offer the Arabic edition
 alongside the English one.
@@ -40,7 +46,7 @@ The generic platforms do not fit either, for structural reasons:
 | KNET is the default way Kuwaitis pay online | Treated as an exotic add-on, where supported at all |
 | Arabic is an equal edition, not a veneer | Themes bolt RTL on; book metadata stays single-language |
 | Digital goods need watermarking and expiring links | Plugin territory, with the licence terms that implies |
-| VAT is 5% in the UAE and 0% in Kuwait | One catalogue, two tax treatments, decided per order |
+| Kuwait levies no VAT on these sales | Platforms assume a tax engine; ours is simply absent |
 
 Each is solvable with enough plugins. Together they argue for owning the stack,
 which also keeps the margin on a product with no unit cost.
@@ -71,7 +77,7 @@ willing to publish.
 ## 4. Scope
 
 **In:** catalogue with search, filter and sort; cart; guest checkout and
-customer accounts; Tap payment by KNET, card and Apple Pay; VAT by country;
+customer accounts; Tap payment by KNET, card and Apple Pay, priced in KWD;
 watermarked PDF delivery through expiring, count-limited links; bilingual order
 and delivery emails; refunds; a full control panel with bulk import; an audit
 trail on every administrative change.
@@ -87,9 +93,30 @@ trail on every administrative change.
 | Mobile app | The storefront is responsive |
 | Reviews and ratings | Needs enough traffic to be credible |
 | Coupons, gift cards | Easy to add later against a working order model |
+| **UAE / AED / VAT** | **Deferred, not abandoned** — see below |
 
 The boundary: anything that changes **how money is taken** or **how a file is
 delivered** belongs in v1, because retrofitting either is expensive.
+
+### Deferring the UAE
+
+v1 sells to Kuwait in KWD only. No currency switcher, no FX rate, no VAT
+calculation, no country selection at checkout.
+
+What stays in place so adding the UAE later is a configuration and UI change
+rather than a migration:
+
+- `Nexus.Domain.Currency` already defines AED at two decimals and is tested.
+  It stays.
+- `Order` keeps `Currency`, `FxRate`, `VatRate`, `VatAmount` and
+  `TotalCharged`. In v1 currency is always KWD, FX is 1 and VAT is 0. Three
+  unused columns is a cheap price for not having to rewrite the order model.
+- Tap's hosted page already offers cards and Apple Pay alongside KNET, so no
+  gateway work is needed to accept a UAE card later.
+
+What a UAE launch would then need: a currency switcher, an FX rate in
+Settings, a VAT rule by country, AED invoice formatting, and a decision about
+whether prices are converted or set per market.
 
 ---
 
@@ -103,7 +130,7 @@ delivered** belongs in v1, because retrofitting either is expensive.
 | ST-4 | Book detail page | Reachable by a stable, shareable URL |
 | ST-5 | Cart with multiple books | Same book cannot be added twice — it is a file, not a quantity |
 | ST-6 | Switch language anywhere | Whole interface flips to RTL without losing place or cart |
-| ST-7 | Switch currency anywhere | Re-renders at the right scale: 3 decimals KWD, 2 AED |
+| ST-7 | All prices shown in KWD at three decimals | `6.500`, never `6.50`; no currency switcher in v1 |
 | ST-8 | Works on a phone | Primary target; KNET buyers are overwhelmingly mobile |
 
 **Language is a hard requirement.** A book may not be published until its
@@ -124,7 +151,7 @@ receives identical in both.
 | AC-3 | Permanent library for signed-in customers | Survives link expiry |
 | AC-4 | Customer re-issues an expired link themselves | No support request for the commonest complaint |
 | AC-5 | Order history with printable invoice | Matches what Tap charged, to the fils |
-| AC-6 | Profile holds preferred language and currency | Applied on next sign-in, any device |
+| AC-6 | Profile holds preferred language | Applied on next sign-in, any device |
 | AC-7 | Guest purchases merge on confirmed registration | Buy as guest, register later, book is there |
 | AC-8 | Admin and staff sign in separately from customers | Separate login, separate session, no shared cookie |
 
@@ -161,7 +188,7 @@ email.
 | PM-7 | Amount and currency re-checked against our order | Valid signature, wrong amount, still refused |
 | PM-8 | Stuck orders reconciled automatically | Pending over 30 minutes settled or failed nightly |
 | PM-9 | Refunds revoke download grants | Refunded customer loses access |
-| PM-10 | VAT 5% AED, 0% KWD | Shown before payment and on the invoice |
+| PM-10 | No VAT line on a Kuwait order | Invoice shows the KWD total only; the field stays in the model for later |
 
 **The three-decimal rule is a product risk.** Tap signs each notification with
 an HMAC over the amount formatted at the currency's scale. KWD has three
@@ -209,7 +236,7 @@ The test: the owner runs the store for a month without a developer.
 | Orders | Detail, Tap reference, **refund**, **re-send link** |
 | Customers | Profile, history, lifetime value, delete-my-data |
 | Downloads | Live log with IP and count, **revoke**, re-issue |
-| Settings | Tap keys, expiry, limit, watermark, VAT, FX, email template |
+| Settings | Tap keys, expiry, limit, watermark, email template |
 
 **Bulk import is a requirement.** Adding books one form at a time stops being
 viable around the thirtieth, and the catalogue is expected to grow.
@@ -226,7 +253,7 @@ Every administrative write is audited: who, what, before, after, when.
 | Area | Requirement |
 | --- | --- |
 | Bilingual parity | Every string, email and error in both languages. A missing Arabic string is a bug |
-| Money | `decimal` throughout; KWD 3 dp, AED 2 dp; rounded at the currency's scale |
+| Money | `decimal` throughout; KWD at 3 decimals, rounded at that scale |
 | Payment integrity | Totals recomputed server-side; client totals ignored |
 | Security | No card data on our servers; authorisation per request; rate limits on checkout, download, sign-in |
 | Secrets | Server environment configuration only; never in the repository |
@@ -256,7 +283,7 @@ a URL, a token format or a route.
 | Repeat purchase at 90 days | The real test of catalogue depth | Set after launch |
 
 The Arabic share is the interesting one: the whole premise is that a Gulf
-reader wants this content in their own language and currency.
+reader wants this content in their own language.
 
 ---
 
@@ -270,7 +297,7 @@ account, so merchant approval gates only the final two days.
 | --- | --- | --- | --- |
 | 0 | Foundations | 2 | ✅ Storefront runs on real infrastructure; the pipeline works |
 | 1 | Catalogue | 4 | Books come from a database |
-| 2 | Cart and orders | 3 | An order exists, with the right total, VAT and currency |
+| 2 | Cart and orders | 3 | An order exists in KWD with the right total |
 | 3 | Payments | 5 | Money moves in test mode; orders complete by themselves |
 | 4 | **Delivery** | 4 | **A real purchase produces a real, watermarked, expiring download** |
 | 5 | Email | 2 | The customer gets their link without being on the site |

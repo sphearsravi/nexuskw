@@ -23,15 +23,21 @@ it ships.
   Send `6.5` where Tap hashed `6.500` and every signature check fails — with
   no visible error and no order ever completing. See the `tap-payments` agent.
 
-## 2. Conversion and VAT
+## 2. Scope: Kuwait only, for now
 
-- Base prices are stored in KWD. AED is derived at the stored FX rate.
-- Order of operations: convert, round to the target scale, **then** apply VAT,
-  then round again. Not the other way round.
-- **VAT is 5% on UAE (AED) orders and 0% on Kuwait (KWD) orders.** Kuwait has
-  not implemented VAT. If that changes, it changes in Settings, not in code.
-- `Order` persists `FxRate` and `TotalCharged`. A rate change next month must
-  not make last month's order unreconcilable.
+v1 sells to Kuwait in KWD. **There is no conversion, no FX rate, no VAT
+calculation and no currency switcher.** Kuwait has not implemented VAT on
+these sales. If you find code doing any of that, it is scope creep — flag it.
+
+The door is left open deliberately, and should stay open:
+
+- `Currency` keeps AED at two decimals, with its tests. Do not delete it.
+- `Order` keeps `Currency`, `FxRate`, `VatRate`, `VatAmount` and
+  `TotalCharged`. In v1 currency is always KWD, FX is 1 and VAT is 0. Three
+  unused columns beats rewriting the order model for a UAE launch.
+
+If the UAE is ever switched on, the order of operations matters: convert,
+round to the target scale, **then** apply VAT, then round again.
 
 ## 3. Arabic and RTL
 

@@ -1,7 +1,13 @@
 # Nexus — from static demo to production e-commerce
 
-Plan of record. Target: a real PDF bookstore for Kuwait/UAE with a secure admin control
+Plan of record. Target: a real PDF bookstore for **Kuwait** with a secure admin control
 panel, Tap payments, and automated build + deploy from GitHub.
+
+> **Scope narrowed 2026-10-20: Kuwait only for now.** One currency (KWD), no VAT, no FX,
+> no currency switcher. The UAE and AED are deferred, not abandoned — `Nexus.Domain.Currency`
+> keeps AED and its tests, and `Order` keeps `Currency`, `FxRate`, `VatRate`, `VatAmount`
+> and `TotalCharged` so a later UAE launch is configuration and UI, not a migration.
+> See PRD §4 "Deferring the UAE".
 
 Drafted 2026-10-20 · Status: awaiting answers to the open decisions in §15
 
@@ -19,7 +25,7 @@ What is already real and worth keeping:
 |---|---|---|
 | Visual design, `site.css` (22 KB), CSS-drawn covers | **Keep as-is** | No image assets to migrate |
 | `i18n.js` EN/AR + RTL, all UI strings | **Keep**, move book text to DB | Interface strings stay in JS |
-| Dual currency KWD/AED, VAT 5% AED / 0% KWD | **Keep the rules**, move rate to DB | KWD is 3-decimal — see §6.4 |
+| Dual currency KWD/AED, VAT 5% AED / 0% KWD | **KWD only in v1**; drop the switcher | KWD is 3-decimal — see §6.4 |
 | Page flow: home → shop → book → cart → checkout → success → library | **Keep** | Matches the real funnel |
 | Admin IA: dashboard, books, categories, orders, customers, downloads, settings | **Keep** | Already the right screens |
 | `data.js` const arrays (`BOOKS`, `ORDERS`, `CUSTOMERS`, `DOWNLOADS`, `RATE`) | **Replace** with API client | The single biggest change |
@@ -85,7 +91,7 @@ nexus/
 │   └── Nexus.Web/            API controllers + Razor admin + wwwroot (storefront)
 │       └── wwwroot/          index.html, shop.html, assets/… (from the demo)
 ├── tests/
-│   ├── Nexus.UnitTests/        pricing, VAT, hashstring, token logic
+│   ├── Nexus.UnitTests/        pricing, currency scale, hashstring, tokens
 │   ├── Nexus.IntegrationTests/ WebApplicationFactory + LocalDB
 │   └── Nexus.E2E/              Playwright: browse → pay (Tap test) → download
 ├── db/                       generated idempotent migration SQL per release
@@ -116,7 +122,7 @@ EF Core entities (`int` keys unless noted):
 - **WebhookEvent** — TapChargeId, Attempt, RawBody, HashValid, ProcessedAt;
   unique index on (TapChargeId, Status) for **idempotency**
 - **Setting** — key/value for Tap keys (encrypted), link expiry days, max downloads,
-  watermark on/off, VAT %, FX rate, guest checkout, from-address, email template
+  watermark on/off, guest checkout, from-address, email template
 - **AdminUser** — ASP.NET Core Identity, roles `Admin` / `Staff`
 - **AuditLog** — AdminUserId, Entity, EntityId, Action, Before/After JSON, At
 
@@ -166,11 +172,11 @@ Response shape mirrors the existing `BOOKS` object so the front-end change stays
 *Done when:* `shop.html` and `book.html` render from the API with `data.js` deleted.
 
 ### Phase 2 — Cart, pricing and order creation (3 d)
-Server-side price/VAT/FX engine (`Money`, `PricingService`). `POST /api/orders` takes
-book IDs + customer details, recomputes the total, writes a `Pending` order, returns an
-order number. Cart stays in `localStorage` but holds only IDs.
-*Done when:* unit tests cover KWD 3-dp, AED 2-dp, VAT 5% AED / 0% KWD, rounding at the
-currency's scale, and empty/invalid carts.
+Server-side pricing engine (`Money`, `PricingService`), KWD only. `POST /api/orders`
+takes book IDs + customer details, recomputes the total, writes a `Pending` order and
+returns an order number. Cart stays in `localStorage` but holds only IDs.
+*Done when:* unit tests cover KWD at three decimals, rounding at that scale, and empty
+or invalid carts. AED stays covered by the `Currency` tests against a future UAE launch.
 
 ### Phase 3 — Tap payments (5 d) — full design in §6
 Tap client, charge creation, redirect handling, webhook with hashstring verification,
@@ -255,8 +261,8 @@ Verified against Tap's current docs (2026-10-20). Base URL `https://api.tap.comp
 
 - **Zero PCI scope.** Card data is entered on Tap's hosted page; our servers never see a
   PAN. The demo's card form in `checkout.html` is deleted, not wired up.
-- `src_all` gives Kuwait KNET and UAE cards from one integration — exactly the KWD/AED
-  split the store already models.
+- `src_all` gives KNET, cards and Apple Pay from one hosted page. KNET is how most
+  Kuwaitis pay online; the others cost nothing extra to accept and cover visitors.
 - **The webhook is the only reliable signal.** Browser redirects are lost to closed tabs,
   dead batteries and app switches. The redirect is for the human; the webhook is for the
   database.
@@ -291,9 +297,10 @@ Implementation rules:
 - Respond `200` quickly.
 
 ### 6.4 Money rules
-`decimal` end to end, never `double`. Store KWD at 3 dp. Convert to AED at the stored FX
-rate, round to 2 dp, **then** add VAT, then round again — and persist `TotalCharged` and
-`FxRate` on the order so a later rate change cannot make a past order unreconcilable.
+`decimal` end to end, never `double`. Prices are KWD at 3 dp and that is what Tap is
+charged — in v1 there is no conversion and no VAT step to get wrong. The order still
+persists `Currency`, `FxRate` (1) and `TotalCharged`, so a UAE launch adds a conversion
+rather than rewriting the order model.
 
 ### 6.5 Refunds
 Admin "Refund" calls `POST /v2/refunds` with the charge id, amount and reason; the refund
@@ -452,7 +459,7 @@ environment variables on the server (the pattern already used for the HR app).
 
 ## 12. Testing
 
-- **Unit:** pricing/VAT/FX rounding, order-number generation, **Tap hashstring against
+- **Unit:** pricing and currency-scale rounding, order-number generation, **Tap hashstring against
   Tap's own documented sample**, grant expiry/exhaustion, i18n key completeness.
 - **Integration:** `WebApplicationFactory` over a real DB — checkout creates a Pending
   order; a signed webhook pays it; a replayed webhook is a no-op; an unsigned webhook is
