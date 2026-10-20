@@ -42,6 +42,8 @@ point.
 | CAT-05 | A book has a stable, shareable address (PRD ST-4) | `book.html?id=3` resolves to the same book after a redeploy and after the seed is re-run; book identifiers are never reassigned | **must** |
 | CAT-06 | A category carries an English name, an Arabic name, a display colour, an operator-defined position and an active flag | The header subject menu, the shop filter dropdown and the home subject grid all list the active categories in the same order with the same colours as today; changing the position changes all three | **must** |
 | CAT-07 | Each category reports how many published books it holds | The number beside each subject in the header menu and on the home grid equals the count of published books in that category, and changes when a book is published or unpublished | **must** |
+| CAT-34 | A book cannot be published at a zero or negative price (decision D7) | Publishing a book priced `0.000` or below is refused with a message. No free book can reach checkout, so Phase 3 never has to handle a zero-amount charge | **must** |
+| CAT-35 | The twenty demo titles are seeded into every environment, but **unpublished in production** (decision D4) | A fresh production database holds the six categories and all twenty books with `IsPublished = false`; the storefront shows an empty catalogue until the operator publishes a title. Dev and staging seed them published so the storefront is usable | **must** |
 
 ### Browse, search, filter and sort
 
@@ -51,10 +53,10 @@ point.
 | CAT-09 | Search matches title and author in **both** languages, whatever language the interface is in (PRD ST-2) | `المحفظة` returns *The Patient Portfolio* with the interface in English **and** in Arabic; `Patient` does the same in both. Today the demo searches only the active language, so an Arabic reader cannot find a book by its English title | **must** |
 | CAT-10 | Arabic search tolerates the normal orthographic variation | `المحفظه الصبوره` returns the same single result as `المحفظة الصبورة`; alef forms (ا أ إ آ), yaa / alef maqsura (ي ى), taa marbuta (ة ه) and diacritics do not change the result set | **should** |
 | CAT-11 | Category filter and search combine | Category = Islamic finance plus the query `صكوك` returns only *Sukuk for Beginners*, and the result count shown matches the number of cards rendered | **must** |
-| CAT-12 | Four sort orders — most bought, newest, price low to high, price high to low — in the same order and with the same labels as today | Each ordering is total: two identical requests return the same sequence, ties included (the tiebreak is stated, not accidental) | **must** |
+| CAT-12 | Four sort orders — most bought, newest, price low to high, price high to low — in the same order and with the same labels as today | Each ordering is total: two identical requests return the same sequence, ties included. **"Newest" sorts on the date the book was added to the store (D1)**, not its publication year, so a 2024 title added today ranks above a 2025 title added last year; the year stays a displayed fact and the tiebreak. **"Most bought" reads a sales count held on the book (D2)**, seeded from the demo figures and maintained from paid orders in Phase 2 | **must** |
 | CAT-13 | Search, filter and sort survive a reload and can be shared (PRD ST-3, "Filters combine and survive a reload") | Set a category, a sort and a search term, copy the address, open it in a new tab: same result set, same three controls populated. Today the demo reads `q` and `cat` from the address on first load but never writes them back, and sort always resets to "most bought", so this fails | **must** |
-| CAT-14 | Books can be filtered by price range (PRD ST-3 names price among the filters) | A minimum and a maximum in KWD can be applied and combine with category and search. **Note:** no such control exists in the demo, so satisfying this adds one control to the existing toolbar — see open question Q3 | **should** |
-| CAT-15 | The first screen of results does not require downloading the whole catalogue | With 500 published books seeded, the shop page shows its first full screen of results within 2 seconds on a throttled "slow 3G" profile, and the data fetched for that first screen does not grow with the size of the catalogue | **should** |
+| CAT-14 | Books can be filtered by price range (PRD ST-3 names price among the filters) | A minimum and a maximum in KWD can be applied and combine with category and search. **Decided (D3): ships in this phase** — it is one control added to the existing toolbar, and deferring it means reopening the catalogue for a requirement the PRD already states | **should** |
+| CAT-15 | The first screen of results does not require downloading the whole catalogue | With 500 published books seeded, the shop page shows its first full screen of results within 2 seconds on a throttled "slow 3G" profile, and the data fetched for that first screen does not grow with the size of the catalogue. **Assumption (D8, unconfirmed):** the catalogue reaches hundreds, not tens of thousands | **should** |
 | CAT-16 | The empty-result state is preserved | A query matching nothing shows today's bilingual empty panel with a working "clear filters" action that restores the full list | **must** |
 | CAT-17 | If the catalogue cannot be read, the page says so in the visitor's language | With the catalogue source unavailable, `shop.html` and `book.html` show a localised message; the header, footer and language switch still work; the browser console shows no uncaught error and the page is not blank | **must** |
 
@@ -67,7 +69,8 @@ point.
 | CAT-20 | An unknown, unpublished or malformed book address produces an honest not-found state | `book.html?id=9999`, `?id=abc` and the id of an unpublished book each show a bilingual "not found" panel with a link back to the shop. Today the demo falls back to `BOOKS[0]`, so `?id=9999` silently displays *The Patient Portfolio* — a shareable URL that lies about what it points to | **must** |
 | CAT-21 | Covers still render with no image asset | Every card and detail cover draws as today: category colour, category motif, title and author text, per-book angle variation; no network request for an image | **must** |
 | CAT-22 | A category the operator adds after launch gets a usable cover without a code change | A seventh category is created and a book published under it; its cards render with a legible cover in its chosen colour rather than a blank or broken one. Today the motif set is a hardcoded map keyed by the six demo category slugs | **should** |
-| CAT-23 | The detail page stops asserting per-book facts it does not hold | The "Format: PDF, 6.2 MB" and "Language: Arabic and English" lines are either backed by the book's own data or removed. Today both are fixed interface strings shown identically for all twenty books, and the Arabic one reads `PDF، ٦٫٢ ميغابايت` — Arabic-Indic digits, which PRD §5 forbids outright | **should** |
+| CAT-23 | The detail page stops asserting per-book facts it does not hold | The fixed `fmt_val` string is removed in this phase: today it reads "PDF, 6.2 MB" for all twenty books, and its Arabic form is `PDF، ٦٫٢ ميغابايت` — Arabic-Indic digits, which PRD §5 forbids outright. Real size and format arrive with the file in Phase 4 (CAT-33). "Language" becomes a stored per-book field, not an interface string, so an English-only title can say so | **must** |
+| CAT-36 | The dead "Read first pages" control is removed (decision D6) | Neither the button nor the sample panel appears on the detail page. PRD §4 rules out an in-browser reader, so a control that does nothing is a defect, not a placeholder. A real sample is a separate feature with its own rights question | **must** |
 
 ### Money and language
 
@@ -89,7 +92,7 @@ point.
 | CAT-32 | The detail page can show the ISBN when one exists | A book with an ISBN shows it among the facts; one without shows no empty row | **could** |
 | CAT-33 | The detail page shows the real file size and format once the PDF exists | The facts list reflects the actual stored file rather than a fixed string. Depends on Phase 4 | **could** |
 
-**Count: 24 must, 6 should, 3 could.**
+**Count: 28 must, 5 should, 3 could — 36 total.**
 
 ---
 
@@ -204,73 +207,34 @@ point.
 
 ---
 
-## 6. Open questions
+## 6. Decisions
 
-**Q1 — What does "newest" sort on?**
-The demo sorts by publication year, so a 2024 book added today ranks below a
-2025 book added last year. *Assumption:* the buyer means "newly added to the
-store". **Recommendation:** sort by the date the book was published to the store,
-with publication year as the displayed fact and the tiebreak. *Confirm with the
-store operator.*
+All nine questions raised at analysis are now settled. Four were answered by the
+product owner on 2026-10-20 (D4, D5, D7 and — partly — D8); the rest were taken
+on the analyst's recommendation with no objection.
 
-**Q2 — What does "most bought" sort on before any real orders exist?**
-The demo carries a hand-written sales figure per book, and it is also the default
-sort and the basis of the home page shelf. No real order exists until Phase 2.
-*Assumption:* the seeded figures stand in until there are real sales.
-**Recommendation:** seed the demo figures, keep the count on the book, and start
-maintaining it from paid orders in Phase 2 — so nothing on the storefront has to
-change when real sales arrive. *Confirm with the store operator.*
+| # | Question | Decision | Settled by |
+| --- | --- | --- | --- |
+| D1 | What does "newest" sort on? | **Date added to the store**, not publication year. The year stays a displayed fact and the tiebreak | Recommendation (CAT-12) |
+| D2 | What does "most bought" sort on before real orders? | **A sales count held on the book**, seeded from the demo figures, maintained from paid orders in Phase 2 — so nothing on the storefront changes when real sales start | Recommendation (CAT-12) |
+| D3 | Does the price filter ship this phase? | **Yes.** One control in an existing toolbar; deferring means reopening the catalogue for a requirement the PRD already states | Recommendation (CAT-14) |
+| D4 | Seed the twenty demo titles into production? | **Yes — but unpublished in production.** They exist so the operator can edit rather than retype, and nothing unlicensed is ever offered for sale. Dev and staging seed them published | **Product owner** (CAT-35) |
+| D5 | One bilingual PDF per book, or separate editions? | **One PDF per book**, containing both languages. A book is one saleable thing with one file | **Product owner** (CAT-23, and Phase 4) |
+| D6 | Does v1 ship a readable sample? | **No.** The dead "Read first pages" control is removed rather than left in place. A real sample is a separate feature with its own rights question | Recommendation (CAT-36) |
+| D7 | Can a book be free? | **No.** Zero and negative prices are refused at publish, which keeps zero-amount charges out of Phase 3 entirely | **Product owner** (CAT-34) |
+| D8 | How large will the catalogue get? | **Assumed hundreds, not tens of thousands.** Server-side paging and filtering are built anyway — they are inexpensive here and the PRD commits to a growing catalogue | Assumption — see below |
+| D9 | May the storefront cache the catalogue? | **Yes, 60 seconds.** Trades the operator seeing an edit immediately against load on a shared 512 MB app pool | Recommendation (CAT-30) |
 
-**Q3 — Does the price filter ship in this phase?**
-PRD ST-3 names price among the filters; the demo has no such control, and adding
-one touches `shop.html`'s toolbar, which conflicts with the "markup does not
-change" constraint. **Recommendation:** build the filtering behaviour now
-(CAT-14) and add the single control to the toolbar in the same phase — it is one
-element in an existing row, and deferring it means revisiting the catalogue
-later for a requirement the PRD already states. *Confirm with the product owner.*
+### The one assumption still carrying risk
 
-**Q4 — Should the twenty demo titles be seeded into production?**
-PLAN §14 calls them placeholders that must all be replaced before go-live, and
-rights are unconfirmed (PRD §13). **Recommendation:** seed them in dev and
-staging; in production seed the six categories only, and let the operator add
-real titles through Phase 7. If they must exist in production earlier, seed them
-unpublished so nothing unlicensed is ever offered for sale. *Confirm with the
-product owner — this is a legal exposure, not a preference.*
+**D8 was not answered.** The reply addressed delivery format — which is settled,
+and is D5 — rather than catalogue size. The question stands: *how many titles
+will the store hold, and how soon?*
 
-**Q5 — Is a book one bilingual PDF, or an Arabic edition and an English
-edition?** The detail page says "Language: Arabic and English" for every book,
-which reads as one file containing both. The data model holds a single PDF per
-book, which agrees. *Assumption:* one file per book, bilingual or in whichever
-language it was written. **Recommendation:** confirm this now rather than in
-Phase 4 — two editions per book would change what a catalogue entry is, what is
-bought, and what is delivered. *Confirm with the product owner.*
+It is not blocking. CAT-15 is a **should**, and the work is built either way
+because server-side paging costs little at this stage and removing it later is
+easy. It matters only if the honest answer is tens of thousands, in which case
+search and indexing need designing rather than assuming, and the architect
+should know before Phase 2.
 
-**Q6 — Does v1 ship a readable sample?**
-The detail page has a "Read first pages" button and a panel promising the
-opening pages before purchase. It does nothing today, and PRD §4 rules out an
-in-browser reader. *Assumption:* there is no sample in v1.
-**Recommendation:** remove the button and the panel in this phase rather than
-leave a dead control on the page; if a sample is wanted, it is a separate
-feature with its own rights question. *Confirm with the product owner.*
-
-**Q7 — Can a book be free?**
-Nothing in the PRD mentions it, and a 0.000 price would reach checkout and the
-payment gateway, where a zero-amount charge is a special case.
-**Recommendation:** disallow a zero or negative price at publish in this phase,
-which keeps the question out of Phase 3 entirely. *Confirm with the store
-operator.*
-
-**Q8 — How large is the catalogue expected to get, and how soon?**
-CAT-15 is written against 500 books because PLAN §15 decision 2 says the
-catalogue will grow and bulk import exists for it, but no target was given.
-*Assumption:* hundreds, not tens of thousands. **Recommendation:** confirm the
-order of magnitude before the architect sizes paging; if the honest answer is
-"under a hundred for the first year", CAT-15 can be deferred and the shop can
-keep rendering the whole list. *Confirm with the store operator.*
-
-**Q9 — May the storefront serve a cached copy of the catalogue, and for how
-long?** CAT-30's 60 seconds is my number, not a stated one. It trades the
-operator seeing their edit immediately against load on a shared 512 MB app pool
-(PLAN §10). **Recommendation:** keep 60 seconds; it is short enough that an
-operator checking their own work is not confused, and long enough to absorb a
-traffic spike. *Confirm with whoever owns the hosting decision.*
+Ask again before the architect sizes CAT-15.

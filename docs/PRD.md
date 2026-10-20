@@ -330,13 +330,25 @@ it is the largest phase and the only one that can be worked around manually.
 **External dependencies:** an approved Tap merchant account, a transactional
 email provider, the PDFs with rights cleared, and Arabic text for every title.
 
+### Settled since drafting (2026-10-20)
+
+- **A book is one bilingual PDF**, not an Arabic edition and an English edition.
+  One catalogue entry, one file, one purchase.
+- **No free books.** A zero or negative price is refused at publish, which keeps
+  zero-amount charges out of the payment path entirely.
+- **The demo titles are seeded everywhere but unpublished in production**, so the
+  operator edits rather than retypes and nothing unlicensed is ever offered for
+  sale. Rights are still confirmed per title before publishing.
+
 ### Open questions
 
-- [ ] How many titles at launch, and are rights cleared in writing for each?
+- [ ] Are rights cleared **in writing** for each title before it is published?
+- [ ] **How many titles will the catalogue hold, and how soon?** Hundreds is
+      assumed. Tens of thousands would change how search and paging are designed
 - [ ] Dedicated hosting capacity, or launch on the shared pool?
 - [ ] Which transactional email provider, from which domain?
 - [ ] Custom domain at launch, or the temporary address?
 - [ ] Who sets the launch targets in §11?
 - [ ] Is Arabic text written in-house or commissioned, and at what lead time?
 
-The first two block launch. The rest shape it.
+Rights and hosting block launch. The rest shape it.
