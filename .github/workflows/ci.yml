@@ -59,8 +59,12 @@ jobs:
           path: TestResults
           retention-days: 7
 
-  # GitHub's own secret scanning needs Pro on a private repo, so we run our own.
-  # Detection only — it cannot block a push the way push protection does.
+  # Second line of defence behind GitHub's own push protection.
+  #
+  # Run the gitleaks binary rather than gitleaks-action: the action scans the
+  # range <before>^..<after>, and on a repository whose first commit is in that
+  # range there is no <before>^, so git errors and the action exits 1 while
+  # reporting "no leaks found". Scanning the full history is also stricter.
   secrets:
     name: Secret scan
     runs-on: ubuntu-latest
@@ -68,9 +72,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
+
+      - name: Scan full history with gitleaks
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_VERSION: 8.24.3
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+          ./gitleaks git . --redact --no-banner --exit-code 1
 
   audit:
     name: Dependency audit
