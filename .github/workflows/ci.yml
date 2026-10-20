@@ -52,6 +52,17 @@ jobs:
       - name: Build
         run: dotnet build Nexus.sln -c Release --no-restore
 
+      # The integration fixture falls back to a local instance name when this
+      # is unset, which fails with a confusing "instance not found".
+      - name: Check the test database is reachable
+        run: |
+          echo "NEXUS_TEST_DB set: ${NEXUS_TEST_DB:+yes}"
+          for i in $(seq 1 30); do
+            if (echo > /dev/tcp/127.0.0.1/1433) 2>/dev/null; then echo "sql is accepting connections"; exit 0; fi
+            sleep 2
+          done
+          echo "sql never came up on 1433"; exit 1
+
       - name: Test
         run: >
           dotnet test Nexus.sln -c Release --no-build
