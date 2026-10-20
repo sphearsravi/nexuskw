@@ -387,8 +387,11 @@ Settings now applied:
   branches merged by PR.
 - **Protection on `main`:** the three CI checks (`Build and test`, `Secret scan`,
   `Dependency audit`) must pass, branch must be up to date, conversations resolved, no
-  force-push, no deletion. Because required status checks apply to direct pushes too,
-  **work goes through a branch and a PR from Phase 1 onward.**
+  force-push, no deletion. `enforce_admins` is **off**, so the repo owner can still push
+  directly in an emergency; GitHub records it as a bypass rather than refusing it. Day to
+  day, **work goes through a `feat/*` branch and a PR from Phase 1 onward** — that is a
+  convention backed by an audit trail, not a hard gate. Turn `enforce_admins` on if you
+  want it to be one.
 - **Secret scanning + push protection: enabled.** Plus a pinned `gitleaks` full-history
   scan in CI as a second line of defence.
 - **`.gitignore`:** `bin/ obj/ publish/ App_Data/ *.user appsettings.*.local.json docs/DEPLOY_CREDENTIALS.md`
