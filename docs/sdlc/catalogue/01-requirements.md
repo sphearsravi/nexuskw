@@ -56,7 +56,8 @@ point.
 | CAT-12 | Four sort orders — most bought, newest, price low to high, price high to low — in the same order and with the same labels as today | Each ordering is total: two identical requests return the same sequence, ties included. **"Newest" sorts on the date the book was added to the store (D1)**, not its publication year, so a 2024 title added today ranks above a 2025 title added last year; the year stays a displayed fact and the tiebreak. **"Most bought" reads a sales count held on the book (D2)**, seeded from the demo figures and maintained from paid orders in Phase 2 | **must** |
 | CAT-13 | Search, filter and sort survive a reload and can be shared (PRD ST-3, "Filters combine and survive a reload") | Set a category, a sort and a search term, copy the address, open it in a new tab: same result set, same three controls populated. Today the demo reads `q` and `cat` from the address on first load but never writes them back, and sort always resets to "most bought", so this fails | **must** |
 | CAT-14 | Books can be filtered by price range (PRD ST-3 names price among the filters) | A minimum and a maximum in KWD can be applied and combine with category and search. **Decided (D3): ships in this phase** — it is one control added to the existing toolbar, and deferring it means reopening the catalogue for a requirement the PRD already states | **should** |
-| CAT-15 | The first screen of results does not require downloading the whole catalogue | With 500 published books seeded, the shop page shows its first full screen of results within 2 seconds on a throttled "slow 3G" profile, and the data fetched for that first screen does not grow with the size of the catalogue. **Assumption (D8, unconfirmed):** the catalogue reaches hundreds, not tens of thousands | **should** |
+| CAT-15 | The shop page is fast at the size this catalogue will actually reach | With **150** published books seeded — roughly three years of growth at fifty a year (D8) — the shop page shows its first full screen within 2 seconds on a throttled "slow 3G" profile, and the catalogue payload stays under 150 KB compressed. **No paging is required at this size**; how the catalogue is fetched and filtered is the architect's call | **should** |
+| CAT-37 | The no-paging decision has a stated trigger for revisiting | A documented threshold — 300 published books, or a catalogue payload over 150 KB compressed, whichever comes first — at which paging is reconsidered. Whoever crosses it should not have to rediscover why it was skipped | **could** |
 | CAT-16 | The empty-result state is preserved | A query matching nothing shows today's bilingual empty panel with a working "clear filters" action that restores the full list | **must** |
 | CAT-17 | If the catalogue cannot be read, the page says so in the visitor's language | With the catalogue source unavailable, `shop.html` and `book.html` show a localised message; the header, footer and language switch still work; the browser console shows no uncaught error and the page is not blank | **must** |
 
@@ -92,7 +93,7 @@ point.
 | CAT-32 | The detail page can show the ISBN when one exists | A book with an ISBN shows it among the facts; one without shows no empty row | **could** |
 | CAT-33 | The detail page shows the real file size and format once the PDF exists | The facts list reflects the actual stored file rather than a fixed string. Depends on Phase 4 | **could** |
 
-**Count: 28 must, 5 should, 3 could — 36 total.**
+**Count: 28 must, 5 should, 4 could — 37 total.**
 
 ---
 
@@ -222,19 +223,25 @@ on the analyst's recommendation with no objection.
 | D5 | One bilingual PDF per book, or separate editions? | **One PDF per book**, containing both languages. A book is one saleable thing with one file | **Product owner** (CAT-23, and Phase 4) |
 | D6 | Does v1 ship a readable sample? | **No.** The dead "Read first pages" control is removed rather than left in place. A real sample is a separate feature with its own rights question | Recommendation (CAT-36) |
 | D7 | Can a book be free? | **No.** Zero and negative prices are refused at publish, which keeps zero-amount charges out of Phase 3 entirely | **Product owner** (CAT-34) |
-| D8 | How large will the catalogue get? | **Assumed hundreds, not tens of thousands.** Server-side paging and filtering are built anyway — they are inexpensive here and the PRD commits to a growing catalogue | Assumption — see below |
+| D8 | How large will the catalogue get? | **About fifty titles a year.** So ~150 after three years — small. **Paging is dropped from this phase** (CAT-15), with a stated trigger for revisiting it (CAT-37) | **Product owner** |
 | D9 | May the storefront cache the catalogue? | **Yes, 60 seconds.** Trades the operator seeing an edit immediately against load on a shared 512 MB app pool | Recommendation (CAT-30) |
 
-### The one assumption still carrying risk
+### What the catalogue size buys us
 
-**D8 was not answered.** The reply addressed delivery format — which is settled,
-and is D5 — rather than catalogue size. The question stands: *how many titles
-will the store hold, and how soon?*
+Fifty titles a year is small, and it simplifies this phase rather than
+constraining it.
 
-It is not blocking. CAT-15 is a **should**, and the work is built either way
-because server-side paging costs little at this stage and removing it later is
-easy. It matters only if the honest answer is tens of thousands, in which case
-search and indexing need designing rather than assuming, and the architect
-should know before Phase 2.
+At ~150 books after three years the entire published catalogue is a single
+small response. That means **no paging, no cursor, no infinite scroll, and no
+round-trip per keystroke** — and it leaves the demo's instant filtering intact,
+which matters because the constraint on this phase is that the markup does not
+change.
 
-Ask again before the architect sizes CAT-15.
+It does **not** relax anything about correctness. Bilingual search (CAT-09),
+Arabic orthographic tolerance (CAT-10), total sort orders (CAT-12) and
+shareable filter state (CAT-13) are all still required; they are simply easier
+to satisfy over a small set.
+
+The one thing worth keeping honest is CAT-37: record why paging was skipped and
+at what point to look again. A decision whose reasoning is written down can be
+revisited cheaply; one that is merely absent gets rediscovered the hard way.

@@ -167,7 +167,9 @@ verbatim; confirm it still renders from Kestrel.
 ### Phase 1 — Domain, database, catalogue API (4 d)
 Entities, `NexusDbContext`, first migration, seeder importing the 6 categories and
 20 books out of `data.js`. Public endpoints: `GET /api/categories`,
-`GET /api/books?cat=&q=&sort=&page=`, `GET /api/books/{id}`, `GET /api/settings/public`.
+`GET /api/books?cat=&q=&sort=`, `GET /api/books/{id}`, `GET /api/settings/public`.
+No paging: the catalogue grows ~50 titles a year, so the whole published set is one
+small response (requirements D8, CAT-15, CAT-37).
 Response shape mirrors the existing `BOOKS` object so the front-end change stays minimal.
 *Done when:* `shop.html` and `book.html` render from the API with `data.js` deleted.
 
@@ -499,7 +501,7 @@ deploy".
 | # | Decision | Consequence |
 |---|---|---|
 | 1 | **Real books will be sold**, delivered as **download only** | No shipping, no addresses, no physical fulfilment anywhere in the model. The 20 demo titles are placeholders and will be replaced via the admin. |
-| 2 | **The catalogue will grow** | Book CRUD with PDF upload is core, not nice-to-have; add **bulk CSV import** (§8). Shop needs paging/search/sort against the DB, not an in-memory array. |
+| 2 | **The catalogue grows ~50 titles a year** | Book CRUD with PDF upload is core, not nice-to-have; add **bulk CSV import** (§8). Search/filter/sort run against the DB, not a hardcoded array — but at this size no paging is needed. |
 | 3 | **Tap test account** for all build phases | `sk_test_…` through Phases 3–8. Live keys are a Phase 9 configuration switch, no code change. |
 | 4 | **SmarterASP.NET** hosting | Confirms .NET 8 + IIS + `OutOfProcess` + FTPS deploy (§10). |
 | 5 | **Customer accounts _and_ guest checkout, plus admin accounts** | Three identities — see §4.1. One Identity store, three roles. Guest orders are claimable later by email. |

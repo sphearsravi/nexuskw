@@ -339,12 +339,13 @@ email provider, the PDFs with rights cleared, and Arabic text for every title.
 - **The demo titles are seeded everywhere but unpublished in production**, so the
   operator edits rather than retypes and nothing unlicensed is ever offered for
   sale. Rights are still confirmed per title before publishing.
+- **The catalogue grows by about fifty titles a year** — roughly 150 after three
+  years. Small enough that the storefront needs no paging; see CAT-15 and
+  CAT-37 for the threshold at which that is revisited.
 
 ### Open questions
 
 - [ ] Are rights cleared **in writing** for each title before it is published?
-- [ ] **How many titles will the catalogue hold, and how soon?** Hundreds is
-      assumed. Tens of thousands would change how search and paging are designed
 - [ ] Dedicated hosting capacity, or launch on the shared pool?
 - [ ] Which transactional email provider, from which domain?
 - [ ] Custom domain at launch, or the temporary address?
