@@ -1,16 +1,10 @@
 using System.Net;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.Hosting;
 
 namespace Nexus.IntegrationTests;
 
-public sealed class NexusApp : WebApplicationFactory<Program>
-{
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-        => builder.UseEnvironment("Development"); // no HTTPS redirect in-process
-}
-
-public sealed class StorefrontTests(NexusApp app) : IClassFixture<NexusApp>
+// The host fixture lives in NexusApp.cs — it points at a real database.
+[Collection(NexusCollection.Name)]
+public sealed class StorefrontTests(NexusApp app)
 {
     private readonly HttpClient _client = app.CreateClient();
 

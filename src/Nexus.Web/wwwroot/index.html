@@ -15,7 +15,7 @@
   <section class="hero"><div class="wrap hero-in">
     <div class="hero-top">
       <div>
-        <p class="kicker" data-i18n="hero_kicker"></p>
+        <p class="kicker" id="hero-kicker"></p>
         <h1 data-i18n="hero_line"></h1>
       </div>
       <div class="hero-side">
@@ -63,7 +63,7 @@
   </div></section>
 </main>
 <footer id="site-footer"></footer>
-<script src="assets/js/data.js"></script>
+<script src="assets/js/api.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/site.js"></script>
 <script>
@@ -98,10 +98,12 @@ document.addEventListener('click',e=>{
 });
 function render(){
   drawShelf();
+  const k=document.getElementById('hero-kicker');
+  if(k) k.textContent=tf('hero_kicker',{n:Catalogue.total,c:CATS.length});
   const top=[...BOOKS].sort((a,b)=>b.sales-a.sales).slice(0,4);
   document.getElementById('popular').innerHTML=top.map(bookCard).join('');
   document.getElementById('cats').innerHTML=CATS.map(c=>{
-    const n=BOOKS.filter(b=>b.cat===c.id).length;
+    const n=c.count;
     return `<a class="spine" href="shop.html?cat=${c.id}" style="--c:${c.hue}">
       <span class="spine-rule"></span>
       <span class="spine-name">${L(c)}</span>

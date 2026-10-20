@@ -6,7 +6,9 @@ function S(k, v) {
 }
 const state = {
   get lang() { return S('lang') || 'en'; }, set lang(v) { S('lang', v); },
-  get cur()  { return S('cur')  || 'KWD'; }, set cur(v)  { S('cur', v); },
+  /* Kuwait only: KWD is the single currency. A 'cur' left in storage by an
+     earlier visit must not resurrect AED anywhere (CAT-25). */
+  get cur()  { return 'KWD'; },
   get cart() { try { return JSON.parse(S('cart') || '[]'); } catch (e) { return []; } },
   set cart(v) { S('cart', JSON.stringify(v)); },
   get lib()  { try { return JSON.parse(S('lib')  || '[]'); } catch (e) { return []; } },
@@ -19,13 +21,14 @@ const book = id => BOOKS.find(b => b.id === +id);
 const cat  = id => CATS.find(c => c.id === id);
 const esc  = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
 
-/* ---- money ---- */
-function price(kwd, cur) {
-  cur = cur || state.cur;
-  const v = kwd * RATE[cur];
-  const n = cur === 'KWD' ? v.toFixed(3) : v.toFixed(2);
-  const sym = cur === 'KWD' ? (isAR() ? 'د.ك' : 'KD') : (isAR() ? 'د.إ' : 'AED');
-  return isAR() ? `${n} ${sym}` : `${sym} ${n}`;
+/* ---- money ----
+ * KWD is a three-decimal currency: 6.5 renders as 6.500, never 6.50.
+ * Digits stay Western in both languages (CAT-24), so toFixed and not a
+ * locale-aware formatter, which would give Arabic-Indic numerals under ar.
+ */
+function price(kwd) {
+  const n = Number(kwd).toFixed(3);
+  return isAR() ? `${n} د.ك` : `KD ${n}`;
 }
 const cartTotal = () => state.cart.reduce((s, id) => s + (book(id) ? book(id).price : 0), 0);
 
@@ -96,19 +99,16 @@ function chrome() {
   const n = state.cart.length, here = location.pathname.split('/').pop() || 'index.html';
   const on = f => here === f ? ' class="on"' : '';
   const hdr = document.getElementById('site-header');
+  /* Counts come from the server so they stay right when the operator
+     publishes or unpublishes a title (CAT-07). */
   const subs = CATS.map(x => `<a class="menu-row" href="shop.html?cat=${x.id}">
       <span class="menu-tick" style="background:${x.hue}"></span>
       <span class="menu-name">${L(x)}</span>
-      <span class="menu-n">${BOOKS.filter(b => b.cat === x.id).length}</span></a>`).join('');
+      <span class="menu-n">${x.count}</span></a>`).join('');
   if (hdr) hdr.innerHTML = `
     <div class="topbar"><div class="wrap top-in">
       <span class="top-note">${t('top_note')}</span>
       <div class="tools">
-        <span class="top-lbl">${t('cur_label')}</span>
-        <div class="seg" role="group">
-          <button data-cur="KWD" class="${state.cur === 'KWD' ? 'on' : ''}">KWD</button>
-          <button data-cur="AED" class="${state.cur === 'AED' ? 'on' : ''}">AED</button>
-        </div>
         <button class="lang" data-lang>${isAR() ? 'English' : 'العربية'}</button>
       </div>
     </div></div>
@@ -151,17 +151,33 @@ function applyI18n(root) {
   (root || document).querySelectorAll('[data-i18n]').forEach(e => e.textContent = t(e.dataset.i18n));
   (root || document).querySelectorAll('[data-i18n-ph]').forEach(e => e.placeholder = t(e.dataset.i18nPh));
 }
+/* Fills {n}-style tokens so interface copy stops hardcoding how many books
+   exist (CAT-28): "Twenty titles across six subjects" became wrong the moment
+   the operator added the twenty-first. */
+function tf(key, vars) {
+  return String(t(key)).replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
+}
+
+/* CAT-17: if the catalogue cannot be read, say so in the visitor's language.
+   The header, footer and language switch keep working; the page is not blank
+   and nothing is thrown into the console. */
+function catalogueDown() {
+  const m = document.getElementById('main') || document.getElementById('grid');
+  if (m) m.innerHTML = `<div class="empty" style="grid-column:1/-1">
+      <h3>${t('err_cat_t')}</h3><p>${t('err_cat_d')}</p>
+      <button class="btn btn-ghost" onclick="location.reload()">${t('err_retry')}</button></div>`;
+}
+
 function paint() {
   document.documentElement.lang = state.lang;
   document.documentElement.dir = isAR() ? 'rtl' : 'ltr';
   chrome(); applyI18n();
+  if (Catalogue.failed) { catalogueDown(); return; }
   if (typeof render === 'function') render();
 }
 document.addEventListener('click', e => {
   const lang = e.target.closest('[data-lang]');
   if (lang) { state.lang = isAR() ? 'en' : 'ar'; paint(); return; }
-  const cur = e.target.closest('[data-cur]');
-  if (cur) { state.cur = cur.dataset.cur; paint(); return; }
   const add = e.target.closest('[data-add]');
   if (add) {
     const id = +add.dataset.add, c = state.cart;
@@ -175,4 +191,9 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && e.target.id === 'hq' && e.target.value.trim())
     location.href = 'shop.html?q=' + encodeURIComponent(e.target.value.trim());
 });
-document.addEventListener('DOMContentLoaded', paint);
+/* The catalogue is fetched before the first paint, so every page renders once
+   with real data rather than flashing an empty shelf. */
+document.addEventListener('DOMContentLoaded', async () => {
+  await Catalogue.load();
+  paint();
+});

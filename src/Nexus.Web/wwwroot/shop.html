@@ -12,48 +12,102 @@
 <body>
 <header id="site-header"></header>
 <main class="wrap">
-  <div class="page-head"><h1 data-i18n="shop_title"></h1><p class="muted" data-i18n="shop_sub"></p></div>
+  <div class="page-head"><h1 data-i18n="shop_title"></h1><p class="muted" id="shop-sub"></p></div>
   <div class="toolbar">
     <input class="field" id="q" data-i18n-ph="search_ph">
     <select class="sel" id="fcat"></select>
     <select class="sel" id="fsort"></select>
+    <select class="sel" id="fprice"></select>
     <span class="count" id="count"></span>
   </div>
   <div class="grid" id="grid" style="padding-bottom:70px"></div>
 </main>
 <footer id="site-footer"></footer>
-<script src="assets/js/data.js"></script>
+<script src="assets/js/api.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/site.js"></script>
 <script>
-const P=new URLSearchParams(location.search);
-let f={q:P.get('q')||'',cat:P.get('cat')||'',sort:'popular'};
-function render(){
-  const q=document.getElementById('q'); q.value=f.q;
-  document.getElementById('fcat').innerHTML=
-    `<option value="">${t('filter_all')}</option>`+CATS.map(c=>
-    `<option value="${c.id}" ${f.cat===c.id?'selected':''}>${L(c)}</option>`).join('');
-  document.getElementById('fsort').innerHTML=[['popular','sort_popular'],['new','sort_new'],['low','sort_low'],['high','sort_high']]
-    .map(([v,k])=>`<option value="${v}" ${f.sort===v?'selected':''}>${t('sort_label')}: ${t(k)}</option>`).join('');
-  let list=BOOKS.filter(b=>{
-    const o=L(b), s=(o.t+' '+o.a).toLowerCase();
-    return (!f.cat||b.cat===f.cat) && (!f.q||s.includes(f.q.toLowerCase()));
-  });
-  const by={popular:(a,b)=>b.sales-a.sales,new:(a,b)=>b.year-a.year||b.sales-a.sales,
-            low:(a,b)=>a.price-b.price,high:(a,b)=>b.price-a.price};
-  list.sort(by[f.sort]);
-  document.getElementById('count').textContent=list.length+' '+t('results');
+/* Filter state lives in the address bar (CAT-13), so a filtered shop can be
+   reloaded, bookmarked and shared. The demo read q and cat on first load but
+   never wrote them back, and sort always reset to "most bought". */
+const SORTS = [['popular','sort_popular'],['newest','sort_new'],['price-asc','sort_low'],['price-desc','sort_high']];
+const BANDS = [['', 'price_any'], ['0-3', 'price_u3'], ['3-6', 'price_3_6'], ['6-', 'price_o6']];
+
+function readUrl() {
+  const p = new URLSearchParams(location.search);
+  const sort = p.get('sort');
+  return {
+    q: p.get('q') || '',
+    cat: p.get('cat') || '',
+    sort: SORTS.some(([v]) => v === sort) ? sort : 'popular',
+    band: BANDS.some(([v]) => v === p.get('price')) ? p.get('price') : ''
+  };
+}
+
+function writeUrl(f) {
+  const p = new URLSearchParams();
+  if (f.q) p.set('q', f.q);
+  if (f.cat) p.set('cat', f.cat);
+  if (f.sort && f.sort !== 'popular') p.set('sort', f.sort);
+  if (f.band) p.set('price', f.band);
+  const url = location.pathname + (p.toString() ? '?' + p : '');
+  history.replaceState(null, '', url);
+}
+
+let f = readUrl();
+let seq = 0;            // guards against a slow response overwriting a newer one
+
+function controls() {
+  document.getElementById('q').value = f.q;
+  document.getElementById('fcat').innerHTML =
+    `<option value="">${t('filter_all')}</option>` +
+    CATS.map(c => `<option value="${c.id}" ${f.cat === c.id ? 'selected' : ''}>${esc(L(c))} (${c.count})</option>`).join('');
+  document.getElementById('fsort').innerHTML = SORTS
+    .map(([v, k]) => `<option value="${v}" ${f.sort === v ? 'selected' : ''}>${t('sort_label')}: ${t(k)}</option>`).join('');
+  document.getElementById('fprice').innerHTML = BANDS
+    .map(([v, k]) => `<option value="${v}" ${f.band === v ? 'selected' : ''}>${t(k)}</option>`).join('');
+}
+
+function bandRange(band) {
+  if (!band) return {};
+  const [lo, hi] = band.split('-');
+  return { minPrice: lo || undefined, maxPrice: hi || undefined };
+}
+
+async function render() {
+  document.getElementById('shop-sub').textContent =
+    tf('shop_sub', { n: Catalogue.total, c: CATS.length });
+  controls();
+  writeUrl(f);
+
+  const mine = ++seq;
+  let list;
+  try {
+    list = await Catalogue.search({ cat: f.cat, q: f.q, sort: f.sort, ...bandRange(f.band) });
+  } catch (e) {
+    if (mine === seq) catalogueDown();
+    return;
+  }
+  if (mine !== seq) return;   // a newer keystroke already won
+
+  document.getElementById('count').textContent = list.length + ' ' + t('results');
   document.getElementById('grid').innerHTML = list.length
     ? list.map(bookCard).join('')
-    : `<div class="empty" style="grid-column:1/-1"><h3>${t('empty_shop_t')}</h3><p>${t('empty_shop_d')}</p>
+    : `<div class="empty" style="grid-column:1/-1"><h3>${t('empty_shop_t')}</h3>
+       <p>${tf('empty_shop_d', { n: Catalogue.total })}</p>
        <button class="btn btn-ghost" id="clear">${t('empty_shop_cta')}</button></div>`;
-  const c=document.getElementById('clear');
-  if(c) c.onclick=()=>{f={q:'',cat:'',sort:'popular'};render();};
+  const c = document.getElementById('clear');
+  if (c) c.onclick = () => { f = { q: '', cat: '', sort: 'popular', band: '' }; render(); };
 }
-document.addEventListener('input',e=>{ if(e.target.id==='q'){f.q=e.target.value;render();} });
-document.addEventListener('change',e=>{
-  if(e.target.id==='fcat'){f.cat=e.target.value;render();}
-  if(e.target.id==='fsort'){f.sort=e.target.value;render();}
+
+let typing;
+document.addEventListener('input', e => {
+  if (e.target.id === 'q') { f.q = e.target.value; clearTimeout(typing); typing = setTimeout(render, 180); }
+});
+document.addEventListener('change', e => {
+  if (e.target.id === 'fcat') { f.cat = e.target.value; render(); }
+  if (e.target.id === 'fsort') { f.sort = e.target.value; render(); }
+  if (e.target.id === 'fprice') { f.band = e.target.value; render(); }
 });
 </script>
 </body></html>

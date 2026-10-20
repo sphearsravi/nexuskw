@@ -16,6 +16,28 @@ jobs:
   build:
     name: Build and test
     runs-on: ubuntu-latest
+
+    # Integration tests run against real SQL Server, not an in-memory provider:
+    # decimal(18,3) precision, the published-only filter and Arabic collation
+    # are exactly the things a fake provider gets wrong.
+    services:
+      sql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "Nexus_CI_pw1"
+          MSSQL_PID: Developer
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P Nexus_CI_pw1 -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      NEXUS_TEST_DB: "Server=localhost,1433;Database=NexusTest;User Id=sa;Password=Nexus_CI_pw1;TrustServerCertificate=True"
+
     steps:
       - uses: actions/checkout@v4
 
