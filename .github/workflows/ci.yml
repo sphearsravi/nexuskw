@@ -63,6 +63,12 @@ jobs:
           done
           echo "sql never came up on 1433"; exit 1
 
+      # The storefront has no build step, so nothing else catches an i18n key
+      # that exists in English but not Arabic, or a page that reads the
+      # catalogue without loading the client that fetches it.
+      - name: Audit the storefront
+        run: node tools/audit-storefront.js
+
       - name: Test
         run: >
           dotnet test Nexus.sln -c Release --no-build

@@ -11,8 +11,6 @@ function shell(title){
   document.getElementById('ad-top').innerHTML=`
     <h1>${t(title)}</h1>
     <div class="tools">
-      <div class="seg"><button data-cur="KWD" class="${state.cur==='KWD'?'on':''}">KWD</button>
-        <button data-cur="AED" class="${state.cur==='AED'?'on':''}">AED</button></div>
       <button class="lang" data-lang>${isAR()?'English':'العربية'}</button>
     </div>`;
 }
@@ -21,4 +19,8 @@ function toast(msg){
   const d=document.createElement('div'); d.className='toast'; d.textContent=msg;
   document.body.appendChild(d); setTimeout(()=>d.remove(),2200);
 }
-const revenue30=()=>ORDERS.filter(o=>o.status==='paid').reduce((s,o)=>s+o.items.reduce((x,i)=>x+book(i).price,0),0)*6.4;
+/* Demo figure from the sample orders. The 6.4x multiplier that used to be here
+   invented revenue out of nothing; real numbers arrive with the control panel
+   in phase 7. book() can miss an unpublished title, hence the guard. */
+const revenue30=()=>ORDERS.filter(o=>o.status==='paid')
+  .reduce((s,o)=>s+o.items.reduce((x,i)=>{const b=book(i);return x+(b?b.price:0);},0),0);

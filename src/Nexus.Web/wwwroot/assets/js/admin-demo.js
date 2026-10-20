@@ -21,14 +21,14 @@ const ORDERS = [
     "date": "2026-09-06 14:22"
   },
   {
-    "id": "AE-10427",
+    "id": "KW-10427",
     "cust": "Rashid M.",
     "email": "rashid.m@email.com",
     "items": [
       5
     ],
-    "total": 99.4,
-    "cur": "AED",
+    "total": 8.25,
+    "cur": "KWD",
     "pay": "chg_TS02A1120198",
     "status": "paid",
     "date": "2026-09-06 11:05"
@@ -62,15 +62,15 @@ const ORDERS = [
     "date": "2026-09-05 18:30"
   },
   {
-    "id": "AE-10424",
+    "id": "KW-10424",
     "cust": "Mona K.",
     "email": "mona.k@email.com",
     "items": [
       4,
       10
     ],
-    "total": 87.36,
-    "cur": "AED",
+    "total": 7.25,
+    "cur": "KWD",
     "pay": "chg_TS02A1120145",
     "status": "paid",
     "date": "2026-09-05 09:12"

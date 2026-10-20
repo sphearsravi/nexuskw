@@ -27,7 +27,7 @@ function render(){
       <p>${t('cart_empty_d')}</p><a class="btn" href="shop.html">${t('cart_empty_cta')}</a></div>`;
     return;
   }
-  const sub=cartTotal(), rate=state.cur==='AED'?0.05:0, vat=sub*rate;
+  const sub=cartTotal();
   m.innerHTML=`<div class="two">
     <div>${ids.map(id=>{const b=book(id),o=L(b);return `<div class="line">
         <a href="book.html?id=${b.id}">${cover(b)}</a>
@@ -42,8 +42,7 @@ function render(){
     <aside class="panel">
       <h3>${t('co_summary')}</h3>
       <div class="row-t"><span>${t('subtotal')}</span><span>${price(sub)}</span></div>
-      <div class="row-t"><span>${t('vat')} (${(rate*100).toFixed(0)}%)</span><span>${price(vat)}</span></div>
-      <div class="row-t grand"><span>${t('total')}</span><span>${price(sub+vat)}</span></div>
+      <div class="row-t grand"><span>${t('total')}</span><span>${price(sub)}</span></div>
       <a class="btn btn-wide" style="margin-top:16px" href="checkout.html">${t('checkout')}</a>
       <a class="btn btn-ghost btn-wide" style="margin-top:10px" href="shop.html">${t('keep')}</a>
     </aside></div>`;
