@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>All books — Nexus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Noto+Naskh+Arabic:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+<header id="site-header"></header>
+<main class="wrap">
+  <div class="page-head"><h1 data-i18n="shop_title"></h1><p class="muted" data-i18n="shop_sub"></p></div>
+  <div class="toolbar">
+    <input class="field" id="q" data-i18n-ph="search_ph">
+    <select class="sel" id="fcat"></select>
+    <select class="sel" id="fsort"></select>
+    <span class="count" id="count"></span>
+  </div>
+  <div class="grid" id="grid" style="padding-bottom:70px"></div>
+</main>
+<footer id="site-footer"></footer>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/i18n.js"></script>
+<script src="assets/js/site.js"></script>
+<script>
+const P=new URLSearchParams(location.search);
+let f={q:P.get('q')||'',cat:P.get('cat')||'',sort:'popular'};
+function render(){
+  const q=document.getElementById('q'); q.value=f.q;
+  document.getElementById('fcat').innerHTML=
+    `<option value="">${t('filter_all')}</option>`+CATS.map(c=>
+    `<option value="${c.id}" ${f.cat===c.id?'selected':''}>${L(c)}</option>`).join('');
+  document.getElementById('fsort').innerHTML=[['popular','sort_popular'],['new','sort_new'],['low','sort_low'],['high','sort_high']]
+    .map(([v,k])=>`<option value="${v}" ${f.sort===v?'selected':''}>${t('sort_label')}: ${t(k)}</option>`).join('');
+  let list=BOOKS.filter(b=>{
+    const o=L(b), s=(o.t+' '+o.a).toLowerCase();
+    return (!f.cat||b.cat===f.cat) && (!f.q||s.includes(f.q.toLowerCase()));
+  });
+  const by={popular:(a,b)=>b.sales-a.sales,new:(a,b)=>b.year-a.year||b.sales-a.sales,
+            low:(a,b)=>a.price-b.price,high:(a,b)=>b.price-a.price};
+  list.sort(by[f.sort]);
+  document.getElementById('count').textContent=list.length+' '+t('results');
+  document.getElementById('grid').innerHTML = list.length
+    ? list.map(bookCard).join('')
+    : `<div class="empty" style="grid-column:1/-1"><h3>${t('empty_shop_t')}</h3><p>${t('empty_shop_d')}</p>
+       <button class="btn btn-ghost" id="clear">${t('empty_shop_cta')}</button></div>`;
+  const c=document.getElementById('clear');
+  if(c) c.onclick=()=>{f={q:'',cat:'',sort:'popular'};render();};
+}
+document.addEventListener('input',e=>{ if(e.target.id==='q'){f.q=e.target.value;render();} });
+document.addEventListener('change',e=>{
+  if(e.target.id==='fcat'){f.cat=e.target.value;render();}
+  if(e.target.id==='fsort'){f.sort=e.target.value;render();}
+});
+</script>
+</body></html>

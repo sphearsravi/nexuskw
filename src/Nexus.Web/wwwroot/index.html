@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nexus — financial books as PDF</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Noto+Naskh+Arabic:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+<header id="site-header"></header>
+<main>
+  <section class="hero"><div class="wrap hero-in">
+    <div class="hero-top">
+      <div>
+        <p class="kicker" data-i18n="hero_kicker"></p>
+        <h1 data-i18n="hero_line"></h1>
+      </div>
+      <div class="hero-side">
+        <p data-i18n="hero_body"></p>
+        <div class="hero-cta">
+          <a class="btn" href="shop.html" data-i18n="hero_cta"></a>
+          <a class="lnk" href="book.html?id=8" data-i18n="hero_cta2"></a>
+        </div>
+      </div>
+    </div>
+    <div class="shelf-row" id="shelf"></div>
+    <div class="shelf-line"></div>
+    <div class="cap" id="cap"></div>
+  </div></section>
+
+  <section class="strip"><ul class="wrap strip-in">
+    <li><b data-i18n="as1_t"></b><span data-i18n="as1_d"></span></li>
+    <li><b data-i18n="as2_t"></b><span data-i18n="as2_d"></span></li>
+    <li><b data-i18n="as3_t"></b><span data-i18n="as3_d"></span></li>
+  </ul></section>
+
+  <section class="sec"><div class="wrap">
+    <div class="sec-head"><h2 data-i18n="shelf_title"></h2><a href="shop.html" data-i18n="shelf_all"></a></div>
+    <div class="grid" id="popular"></div>
+  </div></section>
+
+  <section class="sec"><div class="wrap">
+    <div class="sec-head"><h2 data-i18n="cats_title"></h2></div>
+    <div class="spines" id="cats"></div>
+    <div class="spine-shelf"></div>
+  </div></section>
+
+  <section class="sec"><div class="wrap">
+    <div class="sec-head"><h2 data-i18n="how_title"></h2></div>
+    <div class="steps">
+      <div class="step"><h3 data-i18n="how1_t"></h3><p data-i18n="how1_d"></p></div>
+      <div class="step"><h3 data-i18n="how2_t"></h3><p data-i18n="how2_d"></p></div>
+      <div class="step"><h3 data-i18n="how3_t"></h3><p data-i18n="how3_d"></p></div>
+      <div class="step"><h3 data-i18n="how4_t"></h3><p data-i18n="how4_d"></p></div>
+    </div>
+  </div></section>
+
+  <section class="band"><div class="wrap band-in">
+    <h2 data-i18n="trust_t"></h2><p data-i18n="trust_d"></p>
+  </div></section>
+</main>
+<footer id="site-footer"></footer>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/i18n.js"></script>
+<script src="assets/js/site.js"></script>
+<script>
+const SHELF=[1,5,8,12,16,18,4];
+let picked=12;
+function drawShelf(){
+  document.getElementById('shelf').innerHTML=SHELF.map(id=>
+    `<button class="pick ${id===picked?'on':''}" data-pick="${id}"
+       aria-label="${esc(L(book(id)).t)}" aria-pressed="${id===picked}">${cover(book(id))}</button>`).join('');
+  const row=document.getElementById('shelf');
+  if(row.scrollWidth>row.clientWidth+4){
+    const el=row.querySelector('.pick.on');
+    if(el) el.scrollIntoView({block:'nearest',inline:'center',behavior:'smooth'});
+  }
+  const f=book(picked), c=cat(f.cat), o=L(f);
+  document.getElementById('cap').innerHTML=`
+    <div class="cap-book">
+      <span class="cap-sub"><i class="cap-tick" style="background:${c.hue}"></i>${L(c)}</span>
+      <a class="cap-ttl" href="book.html?id=${f.id}">${esc(o.t)}</a>
+      <p class="cap-by">${esc(o.a)}</p>
+    </div>
+    <div class="cap-end">
+      <span class="price">${price(f.price)}</span>
+      <button class="btn btn-sm ${state.cart.includes(f.id)?'is-in':''}" data-add="${f.id}">
+        ${state.cart.includes(f.id)?t('added'):t('add')}</button>
+      <a class="lnk" href="book.html?id=${f.id}">${t('feat_read')}</a>
+    </div>`;
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-pick]');
+  if(b){ picked=+b.dataset.pick; drawShelf(); }
+});
+function render(){
+  drawShelf();
+  const top=[...BOOKS].sort((a,b)=>b.sales-a.sales).slice(0,4);
+  document.getElementById('popular').innerHTML=top.map(bookCard).join('');
+  document.getElementById('cats').innerHTML=CATS.map(c=>{
+    const n=BOOKS.filter(b=>b.cat===c.id).length;
+    return `<a class="spine" href="shop.html?cat=${c.id}" style="--c:${c.hue}">
+      <span class="spine-rule"></span>
+      <span class="spine-name">${L(c)}</span>
+      <span class="spine-n">${n}</span></a>`;
+  }).join('');
+}
+</script>
+</body></html>

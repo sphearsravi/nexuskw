@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore Nexus.sln
+
+      - name: Build
+        run: dotnet build Nexus.sln -c Release --no-restore
+
+      - name: Test
+        run: >
+          dotnet test Nexus.sln -c Release --no-build
+          --logger "trx;LogFileName=test-results.trx"
+          --results-directory TestResults
+
+      - name: Publish web app
+        run: dotnet publish src/Nexus.Web/Nexus.Web.csproj -c Release --no-build -o publish
+
+      # App_Data holds the PDF catalogue and the DataProtection key ring on the
+      # server. It must never travel in an artefact or over the deploy (PLAN.md §10).
+      - name: Strip server-owned files from the artefact
+        run: rm -rf publish/App_Data publish/appsettings.Production.json
+
+      - name: Upload artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-web
+          path: publish
+          retention-days: 14
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults
+          retention-days: 7
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Restore
+        run: dotnet restore Nexus.sln
+      - name: Fail on vulnerable packages
+        run: |
+          dotnet list Nexus.sln package --vulnerable --include-transitive 2>&1 | tee audit.log
+          grep -q "has the following vulnerable packages" audit.log && exit 1 || exit 0

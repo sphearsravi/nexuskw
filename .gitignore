@@ -1,0 +1,37 @@
+## Build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+*.user
+*.suo
+.vs/
+.vscode/
+.idea/
+
+## Runtime data that must never be versioned or deployed over
+src/Nexus.Web/App_Data/
+**/App_Data/library/
+**/App_Data/dpkeys/
+
+## Secrets — see docs/DEPLOY_CREDENTIALS.md (also ignored)
+appsettings.*.local.json
+appsettings.Production.json
+docs/DEPLOY_CREDENTIALS.md
+*.pfx
+.env
+.env.*
+
+## Test and tooling output
+TestResults/
+coverage/
+*.trx
+*.coverage
+tests/Nexus.E2E/playwright-report/
+tests/Nexus.E2E/test-results/
+node_modules/
+
+## Local database files
+*.mdf
+*.ldf

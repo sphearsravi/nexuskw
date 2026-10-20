@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cart — Nexus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Noto+Naskh+Arabic:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+<header id="site-header"></header>
+<main class="wrap">
+  <div class="page-head"><h1 data-i18n="cart_title"></h1></div>
+  <div id="main"></div>
+</main>
+<footer id="site-footer"></footer>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/i18n.js"></script>
+<script src="assets/js/site.js"></script>
+<script>
+function render(){
+  const ids=state.cart, m=document.getElementById('main');
+  if(!ids.length){
+    m.innerHTML=`<div class="empty" style="padding-bottom:90px"><h3>${t('cart_empty_t')}</h3>
+      <p>${t('cart_empty_d')}</p><a class="btn" href="shop.html">${t('cart_empty_cta')}</a></div>`;
+    return;
+  }
+  const sub=cartTotal(), rate=state.cur==='AED'?0.05:0, vat=sub*rate;
+  m.innerHTML=`<div class="two">
+    <div>${ids.map(id=>{const b=book(id),o=L(b);return `<div class="line">
+        <a href="book.html?id=${b.id}">${cover(b)}</a>
+        <div class="line-body">
+          <a class="line-title" href="book.html?id=${b.id}">${esc(o.t)}</a>
+          <p class="muted" style="font-size:13.5px">${esc(o.a)}</p>
+          <button class="link-btn" data-remove="${b.id}">${t('remove')}</button>
+        </div>
+        <span class="price">${price(b.price)}</span></div>`;}).join('')}
+      <p class="note">${t('cart_note')}</p>
+    </div>
+    <aside class="panel">
+      <h3>${t('co_summary')}</h3>
+      <div class="row-t"><span>${t('subtotal')}</span><span>${price(sub)}</span></div>
+      <div class="row-t"><span>${t('vat')} (${(rate*100).toFixed(0)}%)</span><span>${price(vat)}</span></div>
+      <div class="row-t grand"><span>${t('total')}</span><span>${price(sub+vat)}</span></div>
+      <a class="btn btn-wide" style="margin-top:16px" href="checkout.html">${t('checkout')}</a>
+      <a class="btn btn-ghost btn-wide" style="margin-top:10px" href="shop.html">${t('keep')}</a>
+    </aside></div>`;
+}
+</script>
+</body></html>

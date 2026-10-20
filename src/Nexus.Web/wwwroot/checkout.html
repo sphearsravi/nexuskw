@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Checkout — Nexus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Noto+Naskh+Arabic:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+<header id="site-header"></header>
+<main class="wrap">
+  <div class="page-head"><h1 data-i18n="co_title"></h1></div>
+  <div id="main"></div>
+</main>
+<footer id="site-footer"></footer>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/i18n.js"></script>
+<script src="assets/js/site.js"></script>
+<script>
+const buy=new URLSearchParams(location.search).get('buy');
+if(buy && !state.cart.includes(+buy)){ state.cart=[...state.cart,+buy]; }
+function render(){
+  const ids=state.cart, m=document.getElementById('main');
+  if(!ids.length){ location.replace('cart.html'); return; }
+  const sub=ids.reduce((s,i)=>s+book(i).price,0), rate=state.cur==='AED'?0.05:0, vat=sub*rate;
+  m.innerHTML=`<div class="two">
+    <form class="form" id="pay" autocomplete="off">
+      <fieldset class="fs"><legend>${t('co_contact')}</legend>
+        <div class="form">
+          <div><label for="nm">${t('co_name')}</label><input id="nm" required value="Fatima Al-Sayegh"></div>
+          <div><label for="em">${t('co_email')}</label><input id="em" type="email" required value="fatima.a@email.com">
+            <p class="help">${t('co_email_help')}</p></div>
+          <div><label for="co">${t('co_country')}</label>
+            <select id="co"><option>Kuwait</option><option>United Arab Emirates</option></select></div>
+        </div>
+      </fieldset>
+      <fieldset class="fs"><legend>${t('co_pay')}</legend>
+        <div class="form">
+          <div><label for="cn">${t('co_card')}</label><input id="cn" inputmode="numeric" value="4508 7500 1574 1955"></div>
+          <div class="split">
+            <div><label for="ex">${t('co_exp')}</label><input id="ex" value="12 / 29"></div>
+            <div><label for="cv">${t('co_cvv')}</label><input id="cv" value="100"></div>
+          </div>
+          <div><label for="hn">${t('co_holder')}</label><input id="hn" value="FATIMA AL SAYEGH"></div>
+        </div>
+      </fieldset>
+    </form>
+    <aside class="panel">
+      <h3>${t('co_summary')}</h3>
+      ${ids.map(i=>`<div class="row-t"><span>${esc(L(book(i)).t)}</span><span>${price(book(i).price)}</span></div>`).join('')}
+      <div class="row-t"><span>${t('vat')} (${(rate*100).toFixed(0)}%)</span><span>${price(vat)}</span></div>
+      <div class="row-t grand"><span>${t('total')}</span><span>${price(sub+vat)}</span></div>
+      <button class="btn btn-wide" style="margin-top:16px" id="go">${t('co_pay_btn')} ${price(sub+vat)}</button>
+      <p class="note">${t('co_secure')}</p>
+    </aside></div>`;
+  document.getElementById('go').onclick=()=>{
+    const em=document.getElementById('em').value||'you@email.com';
+    const ref=(state.cur==='AED'?'AE-':'KW-')+(10429+Math.floor(Math.random()*70));
+    const lib=state.lib;
+    ids.forEach(id=>lib.push({id:id,order:ref,ts:Date.now(),used:0,max:3,days:7}));
+    state.lib=lib; state.cart=[];
+    location.href='success.html?o='+ref+'&e='+encodeURIComponent(em);
+  };
+}
+</script>
+</body></html>

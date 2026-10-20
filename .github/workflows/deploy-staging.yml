@@ -1,0 +1,92 @@
+name: Deploy (staging)
+
+# Inert until the repository variable DEPLOY_ENABLED is set to 'true' and the
+# secrets below exist. Written now so the pipeline is reviewable from day one.
+#
+# Required secrets:  FTP_SERVER  FTP_USERNAME  FTP_PASSWORD  DB_CONNECTION
+# Required variable: DEPLOY_ENABLED=true, SITE_DIR (e.g. nexus), SMOKE_URL
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: vars.DEPLOY_ENABLED == 'true'
+    name: Publish to SmarterASP staging
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Publish
+        run: |
+          dotnet publish src/Nexus.Web/Nexus.Web.csproj -c Release -o publish
+          rm -rf publish/App_Data publish/appsettings.Production.json
+
+      # EF Core migrations as an idempotent script, applied over the wire.
+      # SmarterASP accepts remote MSSQL connections (proved on the KuwaitHR migration).
+      - name: Generate migration script
+        run: |
+          dotnet tool install --global dotnet-ef
+          dotnet ef migrations script --idempotent --no-build \
+            -p src/Nexus.Infrastructure -s src/Nexus.Web -o db/migrate.sql || \
+            echo "No migrations yet - skipping"
+
+      - name: Apply migrations
+        if: hashFiles('db/migrate.sql') != ''
+        run: |
+          curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc >/dev/null
+          sudo apt-get install -y mssql-tools18 unixodbc-dev
+          /opt/mssql-tools18/bin/sqlcmd -C -S "${{ secrets.DB_SERVER }}" \
+            -U "${{ secrets.DB_USER }}" -P "${{ secrets.DB_PASSWORD }}" \
+            -d "${{ secrets.DB_NAME }}" -i db/migrate.sql
+
+      # IIS holds the DLLs open; app_offline.htm makes it let go.
+      - name: Take the site offline
+        run: |
+          sudo apt-get install -y lftp
+          lftp -c "set ftp:ssl-force true; set ssl:verify-certificate no; \
+                   open -u '${{ secrets.FTP_USERNAME }}','${{ secrets.FTP_PASSWORD }}' ${{ secrets.FTP_SERVER }}; \
+                   put deploy/app_offline.htm -o /${{ vars.SITE_DIR }}/app_offline.htm"
+
+      - name: Upload over FTPS
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          local-dir: ./publish/
+          server-dir: /${{ vars.SITE_DIR }}/
+          # Server-owned files always win. Deleting App_Data would delete the catalogue.
+          exclude: |
+            **/App_Data/**
+            **/appsettings.Production.json
+            **/appsettings.*.local.json
+
+      # Always runs: a failed upload must not leave the shop showing a maintenance page.
+      - name: Bring the site back online
+        if: always()
+        run: |
+          lftp -c "set ftp:ssl-force true; set ssl:verify-certificate no; \
+                   open -u '${{ secrets.FTP_USERNAME }}','${{ secrets.FTP_PASSWORD }}' ${{ secrets.FTP_SERVER }}; \
+                   rm -f /${{ vars.SITE_DIR }}/app_offline.htm"
+
+      - name: Smoke test
+        run: |
+          for i in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "${{ vars.SMOKE_URL }}/health") && \
+              [ "$code" = "200" ] && echo "healthy" && exit 0
+            sleep 6
+          done
+          echo "Site did not come back healthy"; exit 1

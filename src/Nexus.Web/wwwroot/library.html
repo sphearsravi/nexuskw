@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My library — Nexus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Noto+Naskh+Arabic:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+<header id="site-header"></header>
+<main class="wrap">
+  <div class="page-head"><h1 data-i18n="lib_title"></h1><p class="muted" data-i18n="lib_sub"></p></div>
+  <div id="main"></div>
+</main>
+<footer id="site-footer"></footer>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/i18n.js"></script>
+<script src="assets/js/site.js"></script>
+<script>
+function render(){
+  const lib=state.lib, m=document.getElementById('main');
+  if(!lib.length){
+    m.innerHTML=`<div class="empty" style="padding-bottom:90px"><h3>${t('lib_empty_t')}</h3>
+      <p>${t('lib_empty_d')}</p><a class="btn" href="shop.html">${t('cart_empty_cta')}</a></div>`;
+    return;
+  }
+  m.innerHTML='<div class="lib">'+lib.map((x,i)=>{
+    const b=book(x.id), o=L(b);
+    const left=Math.max(0,x.max-x.used);
+    const daysLeft=Math.ceil((x.ts+x.days*864e5-Date.now())/864e5);
+    const dead=left===0||daysLeft<=0;
+    return `<div class="lib-item ${dead?'stale':''}">
+      ${cover(b)}
+      <div class="lib-body">
+        <a class="line-title" href="book.html?id=${b.id}">${esc(o.t)}</a>
+        <p class="muted" style="font-size:13.5px">${esc(o.a)} · ${esc(x.order)}</p>
+        <div class="meter"><span style="width:${(x.used/x.max)*100}%"></span></div>
+        <p class="lib-meta">${dead && daysLeft<=0 ? t('lib_expired')
+          : `${left} ${t('lib_left')} · ${t('lib_expires')} ${Math.max(daysLeft,0)} ${t('lib_days')}`}</p>
+      </div>
+      ${dead ? `<button class="btn btn-ghost btn-sm" data-resend="${i}">${t('lib_resend')}</button>`
+             : `<button class="btn btn-sm" data-dl="${i}">${t('lib_dl')}</button>`}
+    </div>`;
+  }).join('')+'</div>';
+}
+document.addEventListener('click',e=>{
+  const d=e.target.closest('[data-dl]');
+  if(d){ const lib=state.lib; lib[+d.dataset.dl].used++; state.lib=lib; paint(); return; }
+  const r=e.target.closest('[data-resend]');
+  if(r){ const lib=state.lib; const x=lib[+r.dataset.resend]; x.used=0; x.ts=Date.now(); state.lib=lib; paint(); }
+});
+</script>
+</body></html>

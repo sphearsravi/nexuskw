@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Book — Nexus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Noto+Naskh+Arabic:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+<header id="site-header"></header>
+<main class="wrap" id="main"></main>
+<footer id="site-footer"></footer>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/i18n.js"></script>
+<script src="assets/js/site.js"></script>
+<script>
+function render(){
+  const id=+(new URLSearchParams(location.search).get('id')||1);
+  const b=book(id)||BOOKS[0], o=L(b), c=cat(b.cat), inCart=state.cart.includes(b.id);
+  const more=BOOKS.filter(x=>x.cat===b.cat&&x.id!==b.id).slice(0,4);
+  document.getElementById('main').innerHTML=`
+  <div class="detail">
+    <div>${cover(b)}
+      <div class="detail-buy">
+        <span class="price" style="font-size:26px">${price(b.price)}</span>
+        <button class="btn btn-wide ${inCart?'is-in':''}" data-add="${b.id}">${inCart?t('added'):t('add')}</button>
+        <a class="btn btn-ghost btn-wide" href="checkout.html?buy=${b.id}">${t('buy_now')}</a>
+      </div>
+    </div>
+    <div>
+      <span class="tag" style="--c:${c.hue}">${L(c)}</span>
+      <h1>${esc(o.t)}</h1>
+      <p class="by">${esc(o.a)}</p>
+      <p class="lede">${esc(o.d)}</p>
+      <dl class="facts">
+        <div class="fact"><dt>${t('f_pages')}</dt><dd>${b.pages}</dd></div>
+        <div class="fact"><dt>${t('published')}</dt><dd>${b.year}</dd></div>
+        <div class="fact"><dt>${t('format')}</dt><dd>${t('fmt_val')}</dd></div>
+        <div class="fact"><dt>${t('lang_l')}</dt><dd>${t('lang_v')}</dd></div>
+      </dl>
+      <h2>${t('detail_inside')}</h2>
+      <ul class="toc">
+        <li><span>1.</span>${t('toc1')}</li><li><span>2.</span>${t('toc2')}</li>
+        <li><span>3.</span>${t('toc3')}</li><li><span>4.</span>${t('toc4')}</li>
+      </ul>
+      <div class="samplebox">
+        <h2 style="margin:0">${t('preview_t')}</h2>
+        <p>${t('preview_d')}</p>
+        <button class="btn btn-ghost btn-sm">${t('preview')}</button>
+      </div>
+    </div>
+  </div>
+  <section class="sec" style="border-top:1px solid var(--rule);border-bottom:0">
+    <div class="sec-head"><h2>${t('detail_more')}</h2></div>
+    <div class="grid">${more.map(bookCard).join('')}</div>
+  </section>`;
+}
+</script>
+</body></html>
