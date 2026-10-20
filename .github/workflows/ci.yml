@@ -59,6 +59,19 @@ jobs:
           path: TestResults
           retention-days: 7
 
+  # GitHub's own secret scanning needs Pro on a private repo, so we run our own.
+  # Detection only — it cannot block a push the way push protection does.
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   audit:
     name: Dependency audit
     runs-on: ubuntu-latest
