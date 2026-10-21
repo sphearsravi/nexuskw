@@ -13,6 +13,13 @@ builder.Services.AddRazorPages();
 builder.Services.AddControllers();
 builder.Services.AddNexusInfrastructure(builder.Configuration);
 
+// The four streams register themselves, each in its own file, so adding one is
+// adding a line here and never an edit inside somebody else's registration.
+// Payments is absent deliberately: it is held until a Tap sandbox sample exists.
+builder.Services.AddNexusOrders();
+builder.Services.AddNexusDelivery();
+builder.Services.AddNexusEmail(builder.Configuration);
+
 // ---------------------------------------------------------------------------
 // Keys must outlive a deployment, or every deploy invalidates auth cookies and
 // antiforgery tokens and signs everyone out, administrator included. App_Data
