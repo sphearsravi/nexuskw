@@ -106,3 +106,84 @@ const Delivery = {
     return this._limits;
   }
 };
+
+/* The customer's own account and library.
+ *
+ * Lives here beside Catalogue and Delivery so every page gets it from the script tag
+ * it already has, and so site.js can resolve the signed-in state before the first
+ * paint — a header that renders "Sign in" and then flips to "My account" a moment
+ * later is how a reader learns not to trust the page.
+ *
+ * Nothing about the session is stored in the browser. The cookie is HttpOnly and the
+ * server is the only thing that knows; a localStorage flag would simply be a copy that
+ * goes stale the moment the cookie expires.
+ */
+const Account = {
+  me: null,
+
+  get signedIn() { return this.me !== null; },
+
+  async load() {
+    try {
+      const r = await fetch('/api/me/profile', { headers: { accept: 'application/json' } });
+      this.me = r.ok ? await r.json() : null;      // 401 is the normal signed-out answer
+    } catch (e) { this.me = null; }
+    return this.me;
+  },
+
+  /* Returns {ok, status, body}. Every caller needs the status as well as the body:
+     429 and 400 want different sentences, and a thrown exception would lose both. */
+  async send(path, method, body) {
+    try {
+      const r = await fetch(path, {
+        method,
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: body === undefined ? undefined : JSON.stringify(body)
+      });
+      const text = await r.text();
+      let parsed = null;
+      try { parsed = text ? JSON.parse(text) : null; } catch (e) { parsed = null; }
+      return { ok: r.ok, status: r.status, body: parsed };
+    } catch (e) {
+      return { ok: false, status: 0, body: null };
+    }
+  },
+
+  register(payload) { return this.send('/api/account/register', 'POST', payload); },
+  signIn(payload)   { return this.send('/api/account/signin',   'POST', payload); },
+  forgot(payload)   { return this.send('/api/account/forgot',   'POST', payload); },
+  reset(payload)    { return this.send('/api/account/reset',    'POST', payload); },
+  confirm(payload)  { return this.send('/api/account/confirm',  'POST', payload); },
+
+  async signOut() {
+    await this.send('/api/account/signout', 'POST');
+    this.me = null;
+  },
+
+  library()               { return this.send('/api/me/library', 'GET'); },
+  reissue(grantId)        { return this.send(`/api/me/library/${encodeURIComponent(grantId)}/reissue`, 'POST'); },
+  orders()                { return this.send('/api/me/orders', 'GET'); },
+  invoice(orderNumber)    { return this.send(`/api/me/orders/${encodeURIComponent(orderNumber)}`, 'GET'); },
+  saveProfile(payload)    { return this.send('/api/me/profile', 'PUT', payload); }
+};
+
+/* Identity's only configured password rule is a minimum length (DependencyInjection.
+   Identity.cs). Mirrored here so the form can say so before a round trip; the server
+   is still the thing that decides. */
+const PASSWORD_MIN = 10;
+
+/* One mapping from a server problem code to a sentence, so six pages cannot drift
+   into six different ways of saying "wrong password". */
+function accountError(status, code) {
+  if (status === 429) return t('ac_err_rate');
+  if (status === 0) return t('ac_err_generic');
+  return {
+    invalid_credentials: t('ac_err_credentials'),
+    locked_out: t('ac_err_locked'),
+    email_not_confirmed: t('ac_err_unconfirmed'),
+    not_a_customer: t('ac_err_notcustomer'),
+    invalid_name: t('ac_err_name'),
+    invalid_email: t('ac_err_email'),
+    weak_password: t('ac_err_password')
+  }[code] || t('ac_err_generic');
+}

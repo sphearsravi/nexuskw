@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Profile — Nexus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Noto+Naskh+Arabic:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+<header id="site-header"></header>
+<main class="wrap">
+  <div class="page-head"><h1 data-i18n="pf_title"></h1><p class="muted" data-i18n="pf_sub"></p></div>
+  <div id="main"></div>
+</main>
+<footer id="site-footer"></footer>
+<script src="assets/js/api.js"></script>
+<script src="assets/js/i18n.js"></script>
+<script src="assets/js/site.js"></script>
+<script>
+/* AC-6. The display name and the language we write in.
+ *
+ * The email address is shown and not editable: changing it would move the account to a
+ * different person's mailbox, and the confirmation gate that protects AC-7 would have
+ * to be run all over again. That is a deliberate omission, not a missing feature.
+ */
+let profileMsg = null;
+
+function render() {
+  const m = document.getElementById('main');
+
+  if (!Account.signedIn) {
+    m.innerHTML = `<div class="empty" style="padding-bottom:90px">
+      <h3>${t('lib_signin_t')}</h3><p>${t('lib_signin_d')}</p>
+      <a class="btn" href="account.html">${t('lib_signin_cta')}</a></div>`;
+    return;
+  }
+
+  const me = Account.me;
+  const msg = profileMsg
+    ? `<div class="form-msg ${profileMsg.kind}" role="status">${esc(profileMsg.text)}</div>`
+    : '';
+
+  m.innerHTML = `<div class="acct">${msg}
+    <form id="pf-form">
+      <label class="field"><span>${t('ac_email')}</span>
+        <input type="email" value="${esc(me.email)}" disabled></label>
+      <p class="field-hint">${t('pf_email_note')}</p>
+      <label class="field"><span>${t('ac_name')}</span>
+        <input type="text" name="displayName" value="${esc(me.displayName)}" autocomplete="name"></label>
+      <label class="field"><span>${t('ac_lang')}</span>
+        <select name="preferredLanguage">
+          <option value="en"${me.language === 'en' ? ' selected' : ''}>${t('ac_lang_en')}</option>
+          <option value="ar"${me.language === 'ar' ? ' selected' : ''}>${t('ac_lang_ar')}</option>
+        </select></label>
+      <button class="btn" data-save>${t('pf_save')}</button>
+    </form>
+    <p class="link-row"><a href="library.html">${t('nav_library')}</a> · <a href="orders.html">${t('nav_orders')}</a></p>
+  </div>`;
+}
+
+document.addEventListener('click', async e => {
+  const save = e.target.closest('[data-save]');
+  if (!save) return;
+  e.preventDefault();
+
+  const f = document.getElementById('pf-form');
+  const payload = {
+    displayName: f.elements.namedItem('displayName').value,
+    preferredLanguage: f.elements.namedItem('preferredLanguage').value
+  };
+
+  save.disabled = true;
+  save.textContent = t('ac_working');
+
+  const r = await Account.saveProfile(payload);
+
+  if (r.ok) {
+    Account.me = r.body;
+    profileMsg = { kind: 'good', text: t('pf_saved') };
+    /* AC-6 again: the preference is the one the server now holds, so the interface
+       follows it immediately rather than waiting for the next sign-in to agree. */
+    state.lang = r.body.language;
+  } else {
+    profileMsg = { kind: 'bad', text: accountError(r.status, r.body && r.body.code) };
+  }
+
+  paint();
+});
+</script>
+</body></html>

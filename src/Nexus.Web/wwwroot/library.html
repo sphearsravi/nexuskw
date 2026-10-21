@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
 <title>My library — Nexus</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,37 +21,112 @@
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/site.js"></script>
 <script>
-function render(){
-  const lib=state.lib, m=document.getElementById('main');
-  if(!lib.length){
-    m.innerHTML=`<div class="empty" style="padding-bottom:90px"><h3>${t('lib_empty_t')}</h3>
+/* The library, read from the customer's download grants.
+ *
+ * This page used to read localStorage, which made it a lie: the shelf was empty on a
+ * second device, full of somebody else's books on a shared computer, and wrong about the
+ * download counter in every case. The counter and the expiry now come from the rows that
+ * actually police the download, so what the page says and what the server will do are
+ * the same thing.
+ *
+ * Titles come from the order's own snapshots, not from the catalogue, so a book the
+ * operator later unpublishes or renames still appears in the library of the people who
+ * bought it, under the name they bought it by.
+ */
+let shelf = null;
+let shelfError = null;
+let reissueFailed = false;
+
+async function loadShelf() {
+  const r = await Account.library();
+  if (r.ok) { shelf = r.body || []; shelfError = null; }
+  else { shelf = []; shelfError = r.status; }
+}
+
+function stateLabel(item) {
+  return { expired: t('lib_st_expired'), exhausted: t('lib_st_exhausted'), revoked: t('lib_st_revoked') }[item.state];
+}
+
+function row(item) {
+  const b = book(item.bookId);
+  const title = isAR() ? item.titleAr : item.titleEn;
+  const author = isAR() ? item.authorAr : item.authorEn;
+  const dead = item.downloadUrl === null;
+  const days = Math.max(0, daysUntil(item.expiresAt));
+  const used = item.max > 0 ? (item.used / item.max) * 100 : 0;
+
+  const action = dead
+    ? (item.canReIssue
+        ? `<button class="btn btn-ghost btn-sm" data-reissue="${item.grantId}">${t('lib_reissue')}</button>`
+        : '')
+    : `<a class="btn btn-sm" href="${esc(item.downloadUrl)}">${t('lib_dl')}</a>`;
+
+  return `<div class="lib-item ${dead ? 'stale' : ''}">
+    ${b ? cover(b) : ''}
+    <div class="lib-body">
+      ${b ? `<a class="line-title" href="book.html?id=${item.bookId}">${esc(title)}</a>`
+          : `<span class="line-title">${esc(title)}</span>`}
+      <p class="muted" style="font-size:13.5px">${esc(author)} · ${t('lib_order')} ${esc(item.orderNumber)}</p>
+      <div class="meter"><span style="width:${used}%"></span></div>
+      <p class="lib-meta">${dead
+        ? `<span class="lib-state">${esc(stateLabel(item) || '')}</span>`
+        : `${item.left} ${t('lib_left')} · ${t('lib_expires')} ${days} ${t('lib_days')}`}</p>
+    </div>
+    ${action}
+  </div>`;
+}
+
+/* Async, like download.html's: paint() does not await it, and the shelf is cached so
+   switching language repaints from memory instead of asking the server again. */
+async function render() {
+  const m = document.getElementById('main');
+
+  if (!Account.signedIn) {
+    m.innerHTML = `<div class="empty" style="padding-bottom:90px">
+      <h3>${t('lib_signin_t')}</h3><p>${t('lib_signin_d')}</p>
+      <a class="btn" href="account.html">${t('lib_signin_cta')}</a></div>`;
+    return;
+  }
+
+  if (shelf === null) {
+    m.innerHTML = `<div class="empty"><p>${t('ac_working')}</p></div>`;
+    await loadShelf();
+  }
+
+  if (shelfError) {
+    m.innerHTML = `<div class="empty"><h3>${t('err_cat_t')}</h3><p>${t('err_cat_d')}</p>
+      <button class="btn btn-ghost" onclick="location.reload()">${t('err_retry')}</button></div>`;
+    return;
+  }
+
+  if (!shelf.length) {
+    m.innerHTML = `<div class="empty" style="padding-bottom:90px"><h3>${t('lib_empty_t')}</h3>
       <p>${t('lib_empty_d')}</p><a class="btn" href="shop.html">${t('cart_empty_cta')}</a></div>`;
     return;
   }
-  m.innerHTML='<div class="lib">'+lib.map((x,i)=>{
-    const b=book(x.id), o=L(b);
-    const left=Math.max(0,x.max-x.used);
-    const daysLeft=Math.ceil((x.ts+x.days*864e5-Date.now())/864e5);
-    const dead=left===0||daysLeft<=0;
-    return `<div class="lib-item ${dead?'stale':''}">
-      ${cover(b)}
-      <div class="lib-body">
-        <a class="line-title" href="book.html?id=${b.id}">${esc(o.t)}</a>
-        <p class="muted" style="font-size:13.5px">${esc(o.a)} · ${esc(x.order)}</p>
-        <div class="meter"><span style="width:${(x.used/x.max)*100}%"></span></div>
-        <p class="lib-meta">${dead && daysLeft<=0 ? t('lib_expired')
-          : `${left} ${t('lib_left')} · ${t('lib_expires')} ${Math.max(daysLeft,0)} ${t('lib_days')}`}</p>
-      </div>
-      ${dead ? `<button class="btn btn-ghost btn-sm" data-resend="${i}">${t('lib_resend')}</button>`
-             : `<button class="btn btn-sm" data-dl="${i}">${t('lib_dl')}</button>`}
-    </div>`;
-  }).join('')+'</div>';
+
+  const warning = reissueFailed
+    ? `<div class="form-msg bad" role="status">${t('lib_reissue_fail')}</div>`
+    : '';
+
+  m.innerHTML = warning + '<div class="lib">' + shelf.map(row).join('') + '</div>';
 }
-document.addEventListener('click',e=>{
-  const d=e.target.closest('[data-dl]');
-  if(d){ const lib=state.lib; lib[+d.dataset.dl].used++; state.lib=lib; paint(); return; }
-  const r=e.target.closest('[data-resend]');
-  if(r){ const lib=state.lib; const x=lib[+r.dataset.resend]; x.used=0; x.ts=Date.now(); state.lib=lib; paint(); }
+
+document.addEventListener('click', async e => {
+  const r = e.target.closest('[data-reissue]');
+  if (!r) return;
+
+  r.disabled = true;
+  r.textContent = t('ac_working');
+
+  // AC-4: the customer fixes the commonest complaint without a support request. The
+  // whole shelf is reloaded rather than the one row patched, because the server has
+  // just decided which grant is the live one.
+  const response = await Account.reissue(r.dataset.reissue);
+  reissueFailed = !response.ok;
+
+  await loadShelf();
+  paint();
 });
 </script>
 </body></html>

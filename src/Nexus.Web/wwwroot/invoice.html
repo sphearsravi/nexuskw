@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Invoice — Nexus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Noto+Naskh+Arabic:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+<header id="site-header"></header>
+<main class="wrap"><div id="main"></div></main>
+<footer id="site-footer"></footer>
+<script src="assets/js/api.js"></script>
+<script src="assets/js/i18n.js"></script>
+<script src="assets/js/site.js"></script>
+<script>
+/* AC-5, the printable half.
+ *
+ * Every figure is the snapshot the order captured, handed over by the server and not
+ * recalculated here: an invoice is a record of what was charged, and the catalogue
+ * price two years later is a different number with no business on this page.
+ *
+ * KWD is a three-decimal currency, so price() is the only thing that formats money —
+ * 6.5 on an invoice is wrong by a factor of a hundred fils and looks like a typo.
+ */
+let invoice = null;
+let missing = false;
+
+async function render() {
+  const m = document.getElementById('main');
+
+  if (!Account.signedIn) {
+    m.innerHTML = `<div class="empty" style="padding-bottom:90px">
+      <h3>${t('lib_signin_t')}</h3><p>${t('lib_signin_d')}</p>
+      <a class="btn" href="account.html">${t('lib_signin_cta')}</a></div>`;
+    return;
+  }
+
+  const number = new URLSearchParams(location.search).get('order') || '';
+
+  if (invoice === null && !missing) {
+    m.innerHTML = `<div class="empty"><p>${t('ac_working')}</p></div>`;
+    const r = await Account.invoice(number);
+    if (r.ok) invoice = r.body; else missing = true;
+  }
+
+  if (missing || !invoice) {
+    // 404 covers both "no such order" and "not yours", deliberately: distinguishing
+    // them would confirm that a given order number belongs to somebody.
+    m.innerHTML = `<div class="empty"><h3>${t('iv_nf_t')}</h3><p>${t('iv_nf_d')}</p>
+      <a class="btn btn-ghost" href="orders.html">${t('iv_back')}</a></div>`;
+    return;
+  }
+
+  const i = invoice;
+  const lines = i.lines.map(l => `<tr>
+      <td>${esc(isAR() ? l.titleAr : l.titleEn)}<br>
+        <span class="muted" style="font-size:12.5px">${esc(isAR() ? l.authorAr : l.authorEn)}</span></td>
+      <td class="num">${price(l.unitPriceKwd)}</td></tr>`).join('');
+
+  const refunded = i.refundedKwd > 0
+    ? `<div class="inv-tot"><span>${t('iv_refunded')}</span><span>${price(i.refundedKwd)}</span></div>` : '';
+
+  m.innerHTML = `
+    <div class="btns noprint" style="margin:0 0 18px">
+      <button class="btn btn-ghost btn-sm" onclick="window.print()">${t('iv_print')}</button>
+      <a class="btn btn-ghost btn-sm" href="orders.html">${t('iv_back')}</a>
+    </div>
+    <div class="inv">
+      <div class="inv-head">
+        <div><h1 style="margin:0">${t('iv_title')}</h1>
+          <p class="muted" style="margin:4px 0 0">${t('or_number')} ${esc(i.orderNumber)}</p></div>
+        <div>
+          <p class="muted" style="margin:0">${t('or_date')}: ${esc(shortDate(i.placedAt))}</p>
+          <p class="muted" style="margin:4px 0 0">${t('or_status')}: ${esc(t('or_st_' + String(i.status).toLowerCase()))}</p>
+        </div>
+      </div>
+      <p style="margin:0 0 18px"><strong>${t('iv_billed')}</strong><br>
+        ${esc(i.buyerName)}<br><span class="muted">${esc(i.buyerEmail)}</span></p>
+      <table class="tbl">
+        <thead><tr><th>${t('iv_item')}</th><th class="num">${t('iv_price')}</th></tr></thead>
+        <tbody>${lines}</tbody>
+      </table>
+      <div style="margin-top:18px">
+        <div class="inv-tot"><span>${t('iv_subtotal')}</span><span>${price(i.subtotalKwd)}</span></div>
+        <div class="inv-tot"><span>${t('iv_vat')}</span><span>${price(i.vatAmount)}</span></div>
+        ${refunded}
+        <div class="inv-tot grand"><span>${t('iv_total')}</span><span>${price(i.totalKwd)}</span></div>
+      </div>
+      <p class="muted" style="font-size:12.5px;margin:18px 0 0">${t('iv_novat')}</p>
+    </div>`;
+}
+</script>
+</body></html>
