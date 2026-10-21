@@ -20,6 +20,8 @@ builder.Services.AddNexusIdentity();
 builder.Services.AddNexusOrders();
 builder.Services.AddNexusDelivery();
 builder.Services.AddNexusEmail(builder.Configuration);
+builder.Services.AddNexusAccounts();
+builder.Services.AddNexusAdmin();
 
 // ---------------------------------------------------------------------------
 // Keys must outlive a deployment, or every deploy invalidates auth cookies and
