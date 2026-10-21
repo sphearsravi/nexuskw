@@ -98,18 +98,31 @@ public static class IdentityRegistration
     }
 
     /// <summary>
-    /// An unauthenticated XHR should get 401, not a 200 carrying a login page that the
-    /// caller will try to parse as JSON.
+    /// An unauthenticated call to an API should get 401 or 403, not a 302 to a login page
+    /// that the caller will try to parse as JSON.
+    /// <para>
+    /// Both prefixes matter. The storefront's API is under <c>/api</c>; the control
+    /// panel's is under <c>/admin/api</c>, which the first check alone does not match —
+    /// so an admin API call that did not happen to send an <c>Accept</c> header was
+    /// being answered with a redirect to HTML. Access was refused either way; the shape
+    /// of the refusal was wrong.
+    /// </para>
     /// </summary>
     private static Func<RedirectContext<CookieAuthenticationOptions>, Task> ApiFriendly(int status) =>
         ctx =>
         {
-            if (ctx.Request.Path.StartsWithSegments("/api") ||
-                ctx.Request.Headers.Accept.ToString().Contains("application/json", StringComparison.OrdinalIgnoreCase))
+            var path = ctx.Request.Path;
+            var isApi = path.StartsWithSegments("/api")
+                        || path.StartsWithSegments("/admin/api")
+                        || ctx.Request.Headers.Accept.ToString()
+                               .Contains("application/json", StringComparison.OrdinalIgnoreCase);
+
+            if (isApi)
             {
                 ctx.Response.StatusCode = status;
                 return Task.CompletedTask;
             }
+
             ctx.Response.Redirect(ctx.RedirectUri);
             return Task.CompletedTask;
         };
