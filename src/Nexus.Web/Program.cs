@@ -16,6 +16,7 @@ builder.Services.AddNexusInfrastructure(builder.Configuration);
 // The four streams register themselves, each in its own file, so adding one is
 // adding a line here and never an edit inside somebody else's registration.
 // Payments is absent deliberately: it is held until a Tap sandbox sample exists.
+builder.Services.AddNexusIdentity();
 builder.Services.AddNexusOrders();
 builder.Services.AddNexusDelivery();
 builder.Services.AddNexusEmail(builder.Configuration);
@@ -82,15 +83,6 @@ builder.Services.AddRateLimiter(o =>
     o.AddPolicy("catalogue", c => RateLimitPartition.GetFixedWindowLimiter(
         ClientKey(c), _ => new FixedWindowRateLimiterOptions
         { PermitLimit = 300, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
-});
-
-// Admin and staff are distinct, and the distinction is enforced rather than
-// decorative. The Identity store arrives in Phase 6; until then nothing
-// satisfies these, which is the safe direction to fail.
-builder.Services.AddAuthorization(o =>
-{
-    o.AddPolicy("AdminOnly", p => p.RequireRole("Admin"));
-    o.AddPolicy("AdminOrStaff", p => p.RequireRole("Admin", "Staff"));
 });
 
 // An upload cap exists so a large PDF cannot exhaust a 512 MB shared app pool.
@@ -189,6 +181,10 @@ static async Task MigrateAndSeedAsync(WebApplication app)
     // rights are cleared per title. Nothing unlicensed is ever offered for sale.
     var publish = !app.Environment.IsProduction();
     await scope.ServiceProvider.GetRequiredService<CatalogueSeeder>().SeedAsync(publish);
+
+    // Roles, and the first administrator when one is configured.
+    await scope.ServiceProvider.GetRequiredService<IdentitySeeder>()
+        .SeedAsync(app.Environment.IsProduction());
 }
 
 // Exposed so Nexus.IntegrationTests can host the app with WebApplicationFactory.

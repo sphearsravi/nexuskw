@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Nexus.Domain.Entities;
 
@@ -9,7 +10,8 @@ namespace Nexus.Infrastructure.Persistence;
 /// assembly scan, so adding an entity is adding a file and never an edit here — which is
 /// what keeps four parallel workstreams from fighting over one method.
 /// </summary>
-public class NexusDbContext(DbContextOptions<NexusDbContext> options) : DbContext(options)
+public class NexusDbContext(DbContextOptions<NexusDbContext> options)
+    : IdentityDbContext<NexusUser>(options)
 {
     // Catalogue
     public DbSet<Category> Categories => Set<Category>();
@@ -37,6 +39,11 @@ public class NexusDbContext(DbContextOptions<NexusDbContext> options) : DbContex
     public DbSet<EmailSuppression> EmailSuppressions => Set<EmailSuppression>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
-    protected override void OnModelCreating(ModelBuilder b) =>
+    protected override void OnModelCreating(ModelBuilder b)
+    {
+        // Identity maps its own tables first; ours are discovered after, so a
+        // configuration of ours can still refine them.
+        base.OnModelCreating(b);
         b.ApplyConfigurationsFromAssembly(typeof(NexusDbContext).Assembly);
+    }
 }
