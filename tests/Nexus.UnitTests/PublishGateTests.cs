@@ -23,9 +23,61 @@ public class PublishGateTests
         DescriptionAr = "حجة ضد المتاجرة بمدخراتك."
     };
 
+    /// <summary>A record complete enough for development and staging to seed and browse.</summary>
+    private static Book WithRealPdf()
+    {
+        var b = Valid();
+        b.PdfStorageKey = "1/abc.pdf";
+        b.PdfSha256 = new string('a', 64);
+        b.PdfIsPlaceholder = false;
+        return b;
+    }
+
     [Fact]
-    public void A_complete_book_can_be_published() =>
-        Assert.True(Valid().CanPublish());
+    public void A_complete_record_is_content_complete() =>
+        Assert.True(Valid().IsContentComplete());
+
+    /// <summary>
+    /// …but not sellable. Completeness and sellability are deliberately separate: a
+    /// seeded catalogue needs no PDFs, while nothing fileless may ever be put on sale.
+    /// </summary>
+    [Fact]
+    public void A_complete_record_with_no_file_cannot_be_published()
+    {
+        var b = Valid();
+        Assert.True(b.IsContentComplete());
+        Assert.False(b.CanPublish());
+        Assert.Equal("PDF file is missing.", b.PublishBlocker());
+    }
+
+    [Fact]
+    public void A_complete_record_with_a_real_file_can_be_published()
+    {
+        var b = WithRealPdf();
+        Assert.True(b.CanPublish());
+        Assert.Null(b.PublishBlocker());
+    }
+
+    /// <summary>
+    /// The rule blocker B12 exists for: a generated stub satisfies "a file exists", so
+    /// without this the gate reports green on the one failure it was added to catch.
+    /// </summary>
+    [Fact]
+    public void A_seed_placeholder_file_cannot_be_published()
+    {
+        var b = WithRealPdf();
+        b.PdfIsPlaceholder = true;
+        Assert.Equal("PDF is a seed placeholder, not the real file.", b.PublishBlocker());
+    }
+
+    [Fact]
+    public void Content_rules_are_checked_before_file_rules()
+    {
+        var b = WithRealPdf();
+        b.TitleAr = "";
+        // The missing Arabic is the more useful thing to report first.
+        Assert.Equal("Arabic title is missing.", b.PublishBlocker());
+    }
 
     // Arabic is a first-class edition: a book missing any of the three is not
     // publishable, however complete its English is.
@@ -71,7 +123,7 @@ public class PublishGateTests
     [Fact]
     public void The_smallest_sellable_price_is_one_fils()
     {
-        var b = Valid(); b.PriceKwd = 0.001m;
+        var b = WithRealPdf(); b.PriceKwd = 0.001m;
         Assert.True(b.CanPublish());
     }
 

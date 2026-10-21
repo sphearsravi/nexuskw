@@ -78,10 +78,16 @@ public sealed class CatalogueSeeder(NexusDbContext db, ILogger<CatalogueSeeder> 
                 IsPublished = false
             };
 
-            // Never publish something that fails the gate, whatever the caller asked.
+            // Never publish something with an incomplete record, whatever the caller asked.
+            //
+            // ContentBlocker, not PublishBlocker: the seed carries no PDF, and development
+            // and staging need a browsable catalogue to work against. The stricter gate —
+            // a real, non-placeholder file — is enforced by the admin's publish action, so
+            // no operator can put a fileless title on sale in any environment. Production
+            // seeds unpublished regardless (decision D4).
             if (publishBooks)
             {
-                var blocker = book.PublishBlocker();
+                var blocker = book.ContentBlocker();
                 if (blocker is null) book.IsPublished = true;
                 else log.LogWarning("Seed book {Id} left unpublished: {Blocker}", b.Id, blocker);
             }

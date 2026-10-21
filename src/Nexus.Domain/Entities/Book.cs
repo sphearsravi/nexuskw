@@ -54,15 +54,61 @@ public class Book
 
     public bool IsPublished { get; set; }
 
+    // --- the file being sold -------------------------------------------------
+    /// <summary>Relative, <c>{bookId}/{sha256}.pdf</c>, under App_Data. Server-derived, never a client filename.</summary>
+    public string? PdfStorageKey { get; set; }
+
+    /// <summary>Lowercase hex. Also the filename and the stamp-cache key.</summary>
+    public string? PdfSha256 { get; set; }
+
+    public long? PdfSizeBytes { get; set; }
+    public int? PdfPageCount { get; set; }
+
+    /// <summary>What the operator uploaded it as. Display only — never used as a path.</summary>
+    public string? PdfOriginalFileName { get; set; }
+
+    public DateTimeOffset? PdfUploadedAt { get; set; }
+    public string? PdfUploadedByAdminUserId { get; set; }
+
+    /// <summary>
+    /// True for the generated stub the seeder writes. Without this flag a seeded
+    /// placeholder satisfies "a file exists" and the publish gate reports green on the
+    /// exact failure it was added to catch.
+    /// </summary>
+    public bool PdfIsPlaceholder { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 
     /// <summary>
-    /// Why this book may not be offered for sale, or null when it may.
-    /// The publish gate in one place so the admin, the seeder and any import
-    /// cannot drift apart. CAT-03, CAT-04 and CAT-34.
+    /// Why this book may not be offered for sale, or null when it may. The full gate:
+    /// the record is complete <i>and</i> there is a real file to deliver. This is what
+    /// the admin's publish action calls.
     /// </summary>
     public string? PublishBlocker()
+    {
+        var content = ContentBlocker();
+        if (content is not null) return content;
+
+        // A title with nothing to deliver must never reach the shop window, and a
+        // generated stub must not satisfy "a file exists" — otherwise the gate reports
+        // green on the exact failure it was added to catch.
+        if (string.IsNullOrWhiteSpace(PdfStorageKey)) return "PDF file is missing.";
+        if (PdfIsPlaceholder) return "PDF is a seed placeholder, not the real file.";
+        return null;
+    }
+
+    /// <summary>
+    /// Why this book's <i>record</i> is incomplete, ignoring whether a file exists:
+    /// Arabic and English text, a sellable price, an active category.
+    /// CAT-03, CAT-04, CAT-34.
+    /// <para>
+    /// Kept separate from <see cref="PublishBlocker"/> so development and staging can seed
+    /// a browsable catalogue without inventing PDFs, while no operator can ever publish a
+    /// fileless or placeholder title in any environment.
+    /// </para>
+    /// </summary>
+    public string? ContentBlocker()
     {
         if (string.IsNullOrWhiteSpace(TitleAr)) return "Arabic title is missing.";
         if (string.IsNullOrWhiteSpace(AuthorAr)) return "Arabic author is missing.";
@@ -75,7 +121,11 @@ public class Book
         return null;
     }
 
+    /// <summary>Fit to sell: complete record and a real file.</summary>
     public bool CanPublish() => PublishBlocker() is null;
+
+    /// <summary>Complete record, file not considered. What the seeder checks.</summary>
+    public bool IsContentComplete() => ContentBlocker() is null;
 }
 
 public enum BookLanguages
