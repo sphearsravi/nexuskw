@@ -1,0 +1,136 @@
+name: Deploy (production)
+
+# Production is never deployed by merging. It is deployed on purpose: a tag, or a
+# manual run, and in both cases the "production" GitHub environment holds the job
+# until a human approves it.
+#
+# Required secrets (production environment): FTP_SERVER FTP_USERNAME FTP_PASSWORD
+#                                            DB_SERVER DB_NAME DB_USER DB_PASSWORD
+# Required variables: DEPLOY_ENABLED=true, SITE_DIR, SMOKE_URL
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type the word deploy to confirm'
+        required: true
+        default: ''
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false   # never interrupt a half-finished production deploy
+
+jobs:
+  deploy:
+    if: vars.DEPLOY_ENABLED == 'true' && (github.event_name == 'push' || inputs.confirm == 'deploy')
+    name: Publish to production
+    runs-on: ubuntu-latest
+    environment: production    # the approval gate lives here
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      # Production does not deploy anything that has not passed. Re-run rather than
+      # trusting that the tagged commit was green when it was tagged.
+      - name: Build and test
+        run: |
+          dotnet build Nexus.sln -c Release
+          dotnet test  Nexus.sln -c Release --no-build
+
+      - name: Audit the storefront
+        run: node tools/audit-storefront.js
+
+      - name: Publish
+        run: |
+          dotnet publish src/Nexus.Web/Nexus.Web.csproj -c Release -o publish
+          rm -rf publish/App_Data publish/appsettings.Production.json
+
+      - name: Install sqlcmd
+        run: |
+          curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
+            | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc >/dev/null
+          sudo apt-get install -y mssql-tools18 unixodbc-dev lftp
+
+      # Before the schema moves. A migration is additive and reversible in principle;
+      # a backup is what makes that true in practice at 2am.
+      - name: Back up the database
+        run: |
+          STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+          /opt/mssql-tools18/bin/sqlcmd -C -S "${{ secrets.DB_SERVER }}" \
+            -U "${{ secrets.DB_USER }}" -P "${{ secrets.DB_PASSWORD }}" \
+            -d "${{ secrets.DB_NAME }}" -b \
+            -Q "BACKUP DATABASE [${{ secrets.DB_NAME }}] TO DISK = N'${{ secrets.DB_NAME }}_$STAMP.bak' WITH INIT, COMPRESSION" \
+            || echo "::warning::Backup command failed or is not permitted on this host. Confirm the hosting provider's own backup covers this deploy before continuing."
+
+      - name: Generate the migration script
+        run: |
+          dotnet tool install --global dotnet-ef
+          mkdir -p db
+          dotnet ef migrations script --idempotent \
+            -p src/Nexus.Infrastructure -s src/Nexus.Web -o db/migrate.sql
+
+      # Schema first, binaries second. A webhook arriving mid-deploy must not meet a
+      # handler whose tables do not exist yet. It will be retried, so this is a delay
+      # rather than a loss.
+      - name: Apply migrations
+        run: |
+          /opt/mssql-tools18/bin/sqlcmd -C -S "${{ secrets.DB_SERVER }}" \
+            -U "${{ secrets.DB_USER }}" -P "${{ secrets.DB_PASSWORD }}" \
+            -d "${{ secrets.DB_NAME }}" -b -i db/migrate.sql
+
+      - name: Take the site offline
+        run: |
+          lftp -c "set ftp:ssl-force true; set ssl:verify-certificate no; \
+                   open -u '${{ secrets.FTP_USERNAME }}','${{ secrets.FTP_PASSWORD }}' ${{ secrets.FTP_SERVER }}; \
+                   put deploy/app_offline.htm -o /${{ vars.SITE_DIR }}/app_offline.htm"
+
+      - name: Upload over FTPS
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          local-dir: ./publish/
+          server-dir: /${{ vars.SITE_DIR }}/
+          # App_Data holds the PDF catalogue being sold and the DataProtection key
+          # ring. Mirroring over it destroys the stock and signs out every user.
+          # These three exclusions are the most important lines in this file.
+          exclude: |
+            **/App_Data/**
+            **/appsettings.Production.json
+            **/appsettings.*.local.json
+
+      - name: Bring the site back online
+        if: always()   # a failed upload must not strand the shop on a maintenance page
+        run: |
+          lftp -c "set ftp:ssl-force true; set ssl:verify-certificate no; \
+                   open -u '${{ secrets.FTP_USERNAME }}','${{ secrets.FTP_PASSWORD }}' ${{ secrets.FTP_SERVER }}; \
+                   rm -f /${{ vars.SITE_DIR }}/app_offline.htm"
+
+      # Degraded is acceptable (the email outbox reports it until SMTP is configured).
+      # Unhealthy is not, and neither is no answer at all.
+      - name: Smoke test
+        run: |
+          for i in $(seq 1 15); do
+            body=$(curl -fsS --max-time 10 "${{ vars.SMOKE_URL }}/health" 2>/dev/null) && {
+              echo "$body"
+              echo "$body" | grep -q '"status":"Unhealthy"' && { echo "::error::Health reports Unhealthy"; exit 1; }
+              echo "$body" | grep -q '"database":{"status":"Healthy"' || { echo "::error::Database check is not healthy"; exit 1; }
+              echo "healthy"; exit 0
+            }
+            sleep 8
+          done
+          echo "::error::The site did not answer /health after the deploy"; exit 1
+
+      - name: If the smoke test failed
+        if: failure()
+        run: |
+          echo "::error::Production deploy failed. Re-deploy the previous successful "\
+               "artefact from the Actions run that produced it, then diagnose. "\
+               "See docs/runbook.md, 'Rolling back a deploy'."
