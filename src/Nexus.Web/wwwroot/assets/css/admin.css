@@ -79,3 +79,28 @@ html[dir=rtl] .toast{transform:translateX(50%)}
   .adm-body,.adm-top{padding-inline:18px}
 }
 @media(max-width:600px){.kpis,.cols,.set{grid-template-columns:1fr}}
+
+/* ---- phase 7: the panel against real data ---- */
+.side .out .who{font-size:12px;color:#8fa199;margin:8px 0 6px;word-break:break-all}
+.side .out .ico{color:#b6c5be;padding:0}
+.side .out .ico:hover{color:#fff}
+/* The book form holds both languages side by side: a title is only complete when
+   both are filled in, and a form that hides half of them is a form that forgets. */
+.two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.two h3{font-size:14px;color:var(--muted);margin:0 0 10px;font-weight:600}
+.errs{margin:0 0 16px;padding:12px 16px;border-radius:var(--r);background:#F6E3E3;color:#8A2B2B;
+  font-size:13px;list-style:none;max-height:260px;overflow:auto}
+.errs li{padding:2px 0}
+.note.err{color:#8A2B2B}
+.motifs{display:flex;flex-wrap:wrap;gap:8px}
+.motif{border:1px solid var(--rule);background:#fff;border-radius:var(--r);padding:7px 12px;
+  font:400 13px var(--sans);cursor:pointer;color:var(--ink);border-inline-start:4px solid var(--c,var(--rule))}
+html:lang(ar) .motif{font-family:var(--ar)}
+.motif.on{background:var(--ink);color:#fff}
+.btn.danger{background:#8A2B2B}
+.trunc{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.drop{display:flex;flex-direction:column;gap:8px;align-items:stretch;text-align:start}
+.modal .box h3{font-size:15px;margin:20px 0 10px}
+.modal .box table{margin-bottom:6px}
+.adm-body .empty{padding:48px 20px;background:#fff;border:1px solid var(--rule);border-radius:var(--r)}
+@media(max-width:900px){.two{grid-template-columns:1fr}}

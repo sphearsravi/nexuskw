@@ -102,8 +102,9 @@ for (const f of files.filter(x => x.endsWith('.html'))) {
 }
 
 // --- 4. No book data may live in wwwroot ------------------------------------
-// CAT-01: the catalogue comes from the server. admin-demo.js is allowed - it
-// holds sample orders and customers, which are not book data.
+// CAT-01: the catalogue comes from the server. admin-demo.js, which used to be
+// excused here for holding sample orders and customers, is gone - the control
+// panel reads the real thing.
 if (fs.existsSync(path.join(ROOT, 'assets/js/data.js'))) {
   problems.push('assets/js/data.js is back - book data must not live in wwwroot (CAT-01)');
 }

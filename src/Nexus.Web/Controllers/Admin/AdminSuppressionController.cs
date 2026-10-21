@@ -19,7 +19,8 @@ namespace Nexus.Web.Controllers.Admin;
 /// </para>
 /// </summary>
 [ApiController]
-[Route("api/admin/suppressions")]
+// Under /admin: the admin cookie is path-scoped there and is not sent to /api.
+[Route("admin/api/suppressions")]
 [Authorize(Policy = AdminPolicies.AdminOnly)]
 [AutoValidateAntiforgeryToken]
 public sealed class AdminSuppressionController(
