@@ -28,7 +28,7 @@ function render(){
       <a class="btn" href="library.html">${t('ok_dl')}</a>
       <a class="btn btn-ghost" href="library.html">${t('ok_lib')}</a>
     </div>
-    <p class="ref">${t('ok_ref')} ${esc(ref)} · ${t('ok_expiry')}</p>
+    <p class="ref">${t('ok_ref')} ${esc(ref)} · ${tf('ok_expiry', Delivery.limits())}</p>
     <div class="grid" style="margin-top:40px;grid-template-columns:repeat(${Math.min(mine.length||1,4)},1fr)">
       ${mine.map(x=>`<a href="book.html?id=${x.id}">${cover(book(x.id))}</a>`).join('')}
     </div></div>`;

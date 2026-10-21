@@ -56,6 +56,34 @@ for (const [key, where] of used) {
 const onlyAr = Object.keys(I18N.ar).filter(k => !(k in I18N.en));
 for (const k of onlyAr) problems.push(`i18n key '${k}' exists in ar but not in en`);
 
+// --- 1b. Digits stay Western, in both languages ----------------------------
+// PRD §5 forbids Arabic-Indic numerals outright: it matches how Gulf banking
+// interfaces present money, and it keeps what the payment gateway receives
+// identical whichever language the buyer used. This has already shipped twice
+// (the "PDF، ٦٫٢" format line, then three more in the admin and success copy),
+// so it is checked rather than remembered.
+for (const [lang, table] of Object.entries(I18N)) {
+  for (const [key, value] of Object.entries(table)) {
+    if (typeof value === 'string' && /[٠-٩۰-۹]/.test(value)) {
+      problems.push(`i18n '${key}' (${lang}) contains Arabic-Indic digits: ${value}`);
+    }
+  }
+}
+
+// --- 1c. Numbers that are really settings must not be frozen into copy ------
+// "valid for 7 days, 3 downloads" in the interface text means changing the
+// setting leaves the page stating the old number, confidently and wrongly.
+for (const [lang, table] of Object.entries(I18N)) {
+  for (const [key, value] of Object.entries(table)) {
+    if (typeof value !== 'string') continue;
+    if (!/expiry|download|valid/i.test(key)) continue;
+    // A literal digit here is only acceptable if the string also templates one.
+    if (/\d/.test(value) && !/\{\w+\}/.test(value)) {
+      problems.push(`i18n '${key}' (${lang}) hardcodes a number that is an operator setting: ${value}`);
+    }
+  }
+}
+
 // --- 2. Kuwait only: no second currency anywhere ---------------------------
 // CAT-25. A stored preference from an earlier visit must not resurrect AED.
 for (const f of files) {

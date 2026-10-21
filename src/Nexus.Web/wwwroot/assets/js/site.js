@@ -194,6 +194,6 @@ document.addEventListener('keydown', e => {
 /* The catalogue is fetched before the first paint, so every page renders once
    with real data rather than flashing an empty shelf. */
 document.addEventListener('DOMContentLoaded', async () => {
-  await Catalogue.load();
+  await Promise.all([Catalogue.load(), Delivery.load()]);
   paint();
 });

@@ -76,3 +76,33 @@ const Catalogue = {
     return CATS.reduce((n, c) => n + c.count, 0);
   }
 };
+
+/* Delivery limits the storefront quotes back to the buyer.
+ *
+ * These are operator settings, not constants: "valid for 7 days, 3 downloads" was
+ * hardcoded into the interface copy in both languages, so changing the setting would
+ * have left the page confidently stating the old numbers.
+ *
+ * Phase 4 serves them from /api/settings/public, which is a hardcoded allow-list of
+ * exactly these two keys — never a projection over the settings table, because that
+ * table will also hold the payment keys. Until that endpoint exists the documented
+ * defaults are used, and a failed fetch falls back to them rather than showing nothing.
+ */
+const Delivery = {
+  _limits: { d: 7, n: 3 },
+
+  limits() { return this._limits; },
+
+  async load() {
+    try {
+      const r = await fetch('/api/settings/public', { headers: { accept: 'application/json' } });
+      if (!r.ok) return this._limits;
+      const s = await r.json();
+      const d = Number(s['delivery.linkExpiryDays']);
+      const n = Number(s['delivery.maxDownloads']);
+      if (Number.isFinite(d) && d > 0) this._limits.d = d;
+      if (Number.isFinite(n) && n > 0) this._limits.n = n;
+    } catch (e) { /* defaults stand */ }
+    return this._limits;
+  }
+};
