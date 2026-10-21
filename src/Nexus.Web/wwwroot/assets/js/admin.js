@@ -7,7 +7,7 @@
    fetches is what makes the language toggle instant and reentrant. */
 const AD_NAV = [
   ['index.html', 'a_dash'], ['books.html', 'a_books'], ['categories.html', 'a_cats'],
-  ['orders.html', 'a_orders'], ['customers.html', 'a_custs'], ['downloads.html', 'a_dls'],
+  ['reports.html', 'a_reports'], ['orders.html', 'a_orders'], ['customers.html', 'a_custs'], ['downloads.html', 'a_dls'],
   ['settings.html', 'a_set']
 ];
 

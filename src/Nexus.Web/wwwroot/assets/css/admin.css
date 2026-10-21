@@ -104,3 +104,10 @@ html:lang(ar) .motif{font-family:var(--ar)}
 .modal .box table{margin-bottom:6px}
 .adm-body .empty{padding:48px 20px;background:#fff;border:1px solid var(--rule);border-radius:var(--r)}
 @media(max-width:900px){.two{grid-template-columns:1fr}}
+
+/* Reports: a bar per day, drawn from the data itself rather than by a chart
+   library — one dependency for seven bars is one more thing to keep patched. */
+.spark { display:flex; align-items:flex-end; gap:3px; height:140px; padding:8px 0 0 }
+.spark-bar { flex:1 1 auto; min-width:2px; background:var(--brand); border-radius:2px 2px 0 0; opacity:.85 }
+.spark-bar:hover { opacity:1 }
+.spark-axis { display:flex; justify-content:space-between; font-size:11.5px; color:var(--muted); margin-top:6px }

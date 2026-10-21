@@ -39,6 +39,7 @@ public static class AdminRegistration
         services.TryAddScoped<IAuditLog, AuditLogWriter>();
 
         services.AddScoped<AdminDashboardService>();
+        services.AddScoped<AdminReportsService>();
         services.AddScoped<BookAdminService>();
         services.AddScoped<CatalogueImportService>();
         services.AddScoped<CategoryAdminService>();
