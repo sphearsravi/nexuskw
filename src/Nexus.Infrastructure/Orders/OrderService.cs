@@ -48,7 +48,8 @@ public sealed class OrderService(
         var (basket, problem) = await pricing.PriceAsync(request.BookIds, ct);
         if (problem is not null) return (null, problem);
 
-        WarnOnClientTotalMismatch(request.ClientTotalFils, basket!.TotalKwd);
+        var stale = ClientTotalMismatch(request.ClientTotalFils, basket!.TotalKwd);
+        if (stale is not null) return (null, stale);
 
         for (var attempt = 1; ; attempt++)
         {
@@ -255,19 +256,35 @@ public sealed class OrderService(
     }
 
     /// <summary>
-    /// The browser's figure is advisory and is never charged. It exists to surface a
-    /// stale cart in the log, not to decide a price.
+    /// The browser's figure never decides a price — the catalogue does. But when the two
+    /// disagree the buyer is looking at a cart that no longer reflects what they would be
+    /// charged, so the order is refused rather than silently repriced.
+    /// <para>
+    /// Settled 2026-10-21. The plan called for a 409 here and the interface's own doc
+    /// comment called for proceed-and-log; they are incompatible, not a matter of
+    /// emphasis. 409 wins: charging more than the amount a buyer saw and agreed to is
+    /// not a logging matter. The storefront re-renders the cart at the new price and
+    /// lets them decide.
+    /// </para>
+    /// <para>
+    /// The field stays optional. A request that omits it is making no claim about the
+    /// price and is priced from the catalogue as before.
+    /// </para>
     /// </summary>
-    private void WarnOnClientTotalMismatch(int? clientTotalFils, decimal serverTotalKwd)
+    private BasketProblem? ClientTotalMismatch(int? clientTotalFils, decimal serverTotalKwd)
     {
-        if (clientTotalFils is not { } client) return;
+        if (clientTotalFils is not { } client) return null;
 
         var server = BasketPricing.ToFils(serverTotalKwd);
-        if (client == server) return;
+        if (client == server) return null;
 
-        log.LogWarning(
-            "Client total {ClientFils} fils disagrees with the catalogue total {ServerFils} fils; " +
-            "proceeding at the server price.", client, server);
+        log.LogInformation(
+            "Checkout refused: client total {ClientFils} fils disagrees with the catalogue " +
+            "total {ServerFils} fils. The cart is stale.", client, server);
+
+        return new BasketProblem(
+            "price_changed",
+            $"The price has changed since your cart was shown. The total is now {Currency.Kwd.Format(serverTotalKwd)}.");
     }
 
     private static bool IsDuplicateKey(DbUpdateException ex) =>

@@ -8,9 +8,10 @@ namespace Nexus.Application.Orders;
 /// <param name="Email">Buyer's email, snapshotted onto the order.</param>
 /// <param name="Language">Interface language at checkout, snapshotted so the email matches.</param>
 /// <param name="ClientTotalFils">
-/// Advisory only, in fils. If it disagrees with the server's figure the order still
-/// proceeds at the server's price and the discrepancy is logged — it exists to catch a
-/// stale cart, never to decide what is charged.
+/// Optional, in fils: what the buyer was shown. It never decides a price — the catalogue
+/// does — but if it disagrees, the order is refused with <c>price_changed</c> rather than
+/// silently repriced, because charging more than the amount someone saw and agreed to is
+/// not a logging matter. Omit it to make no claim and be priced from the catalogue.
 /// </param>
 public sealed record CheckoutRequest(
     IReadOnlyList<int> BookIds,

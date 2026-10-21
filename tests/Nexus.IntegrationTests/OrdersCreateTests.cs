@@ -123,22 +123,77 @@ public sealed class OrdersCreateTests(NexusApp app) : IAsyncLifetime
         Assert.Matches(@"^\d+\.\d{3}$", Currency.Kwd.Format(stored.TotalCharged));
     }
 
-    // PM-3: clientTotalFils is advisory. It is never stored and never charged.
+    // PM-3: the client's figure never decides a price. Settled 2026-10-21: when it
+    // disagrees the order is REFUSED rather than silently repriced, because charging
+    // more than the amount a buyer saw and agreed to is not a logging matter.
     [Fact]
-    public async Task A_tampered_client_total_is_ignored()
+    public async Task A_tampered_client_total_is_refused_not_repriced()
     {
         using var provider = OrdersTestHost.Build(app);
-        var expected = await CatalogueTotalAsync(4, 5);
 
         var (result, problem) = await CreateAsync(
             provider,
             Request([4, 5], "tamper@example.com", clientTotalFils: 1),
             Guid.NewGuid().ToString());
 
+        Assert.Null(result);
+        Assert.NotNull(problem);
+        Assert.Equal("price_changed", problem!.Code);
+    }
+
+    /// <summary>A refused checkout must not leave a half-made order behind.</summary>
+    [Fact]
+    public async Task A_refused_stale_cart_writes_no_order()
+    {
+        using var provider = OrdersTestHost.Build(app);
+        var key = Guid.NewGuid().ToString();
+
+        var (_, problem) = await CreateAsync(
+            provider, Request([4, 5], "noorder@example.com", clientTotalFils: 7), key);
+        Assert.Equal("price_changed", problem!.Code);
+
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<NexusDbContext>();
+        Assert.False(await db.Orders.AnyAsync(o => o.IdempotencyKey == key));
+    }
+
+    /// <summary>
+    /// The buyer's remedy: the storefront re-renders at the new price and they confirm.
+    /// A second attempt carrying the correct figure must go through.
+    /// </summary>
+    [Fact]
+    public async Task Re_submitting_at_the_new_price_succeeds()
+    {
+        using var provider = OrdersTestHost.Build(app);
+        var expected = await CatalogueTotalAsync(4, 5);
+
+        var (_, stale) = await CreateAsync(
+            provider, Request([4, 5], "retry@example.com", clientTotalFils: 1),
+            Guid.NewGuid().ToString());
+        Assert.Equal("price_changed", stale!.Code);
+
+        var (result, problem) = await CreateAsync(
+            provider,
+            Request([4, 5], "retry@example.com", clientTotalFils: (int)(expected * 1000)),
+            Guid.NewGuid().ToString());
+
+        Assert.Null(problem);
+        Assert.Equal(expected, result!.Order.TotalKwd);
+    }
+
+    /// <summary>Omitting the figure makes no claim about the price, and is priced from the catalogue.</summary>
+    [Fact]
+    public async Task An_absent_client_total_is_priced_from_the_catalogue()
+    {
+        using var provider = OrdersTestHost.Build(app);
+        var expected = await CatalogueTotalAsync(4, 5);
+
+        var (result, problem) = await CreateAsync(
+            provider, Request([4, 5], "noclaim@example.com"), Guid.NewGuid().ToString());
+
         Assert.Null(problem);
         Assert.Equal(expected, result!.Order.TotalKwd);
         Assert.Equal(expected, result.Order.TotalCharged);
-        Assert.NotEqual(0.001m, result.Order.TotalKwd);
     }
 
     [Fact]
