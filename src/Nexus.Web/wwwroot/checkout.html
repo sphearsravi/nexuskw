@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
 <title>Checkout — Nexus</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,49 +21,132 @@
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/site.js"></script>
 <script>
-const buy=new URLSearchParams(location.search).get('buy');
-if(buy && !state.cart.includes(+buy)){ state.cart=[...state.cart,+buy]; }
-function render(){
-  const ids=state.cart, m=document.getElementById('main');
-  if(!ids.length){ location.replace('cart.html'); return; }
-  const sub=ids.reduce((s,i)=>s+book(i).price,0);
-  m.innerHTML=`<div class="two">
-    <form class="form" id="pay" autocomplete="off">
+/* There is no card form here, and there never will be.
+ *
+ * Card details are entered on the gateway's own hosted page, which is what keeps this
+ * application out of PCI scope entirely. The demo's fake card fields were deleted
+ * rather than wired up.
+ *
+ * The order is created by POST /api/checkout, the single public way to make one, and
+ * the total is recomputed there from the catalogue. What this page sends is a claim
+ * about the price the buyer was shown, not an instruction about what to charge.
+ */
+const buy = new URLSearchParams(location.search).get('buy');
+if (buy && !state.cart.includes(+buy)) state.cart = [...state.cart, +buy];
+
+/* One key per cart, kept for the life of the cart. A double submission on a slow
+   connection must not create two orders, and a genuinely new cart must not reuse
+   the old key. */
+function idempotencyKey() {
+  const fingerprint = state.cart.slice().sort((a, b) => a - b).join(',');
+  let saved;
+  try { saved = JSON.parse(sessionStorage.getItem('checkout-key') || 'null'); } catch (e) { saved = null; }
+  if (saved && saved.cart === fingerprint) return saved.key;
+  const key = (crypto.randomUUID && crypto.randomUUID()) ||
+    (Date.now() + '-' + Math.random().toString(16).slice(2));
+  try { sessionStorage.setItem('checkout-key', JSON.stringify({ cart: fingerprint, key })); } catch (e) { /* ignore */ }
+  return key;
+}
+
+function clearCheckoutKey() { try { sessionStorage.removeItem('checkout-key'); } catch (e) { /* ignore */ } }
+
+function render() {
+  const ids = state.cart, m = document.getElementById('main');
+  if (!ids.length) { location.replace('cart.html'); return; }
+
+  const books = ids.map(book).filter(Boolean);
+  const sub = books.reduce((s, b) => s + b.price, 0);
+
+  m.innerHTML = `<div class="two">
+    <form class="form" id="pay" autocomplete="on" novalidate>
       <fieldset class="fs"><legend>${t('co_contact')}</legend>
         <div class="form">
-          <div><label for="nm">${t('co_name')}</label><input id="nm" required value="Fatima Al-Sayegh"></div>
-          <div><label for="em">${t('co_email')}</label><input id="em" type="email" required value="fatima.a@email.com">
+          <div><label for="nm">${t('co_name')}</label>
+            <input id="nm" name="name" autocomplete="name" required maxlength="128"></div>
+          <div><label for="em">${t('co_email')}</label>
+            <input id="em" name="email" type="email" autocomplete="email" required maxlength="256">
             <p class="help">${t('co_email_help')}</p></div>
-          <div><label for="co">${t('co_country')}</label>
-            <select id="co"><option>Kuwait</option><option>United Arab Emirates</option></select></div>
         </div>
       </fieldset>
-      <fieldset class="fs"><legend>${t('co_pay')}</legend>
-        <div class="form">
-          <div><label for="cn">${t('co_card')}</label><input id="cn" inputmode="numeric" value="4508 7500 1574 1955"></div>
-          <div class="split">
-            <div><label for="ex">${t('co_exp')}</label><input id="ex" value="12 / 29"></div>
-            <div><label for="cv">${t('co_cvv')}</label><input id="cv" value="100"></div>
-          </div>
-          <div><label for="hn">${t('co_holder')}</label><input id="hn" value="FATIMA AL SAYEGH"></div>
-        </div>
-      </fieldset>
+      <div id="co-problem"></div>
     </form>
     <aside class="panel">
       <h3>${t('co_summary')}</h3>
-      ${ids.map(i=>`<div class="row-t"><span>${esc(L(book(i)).t)}</span><span>${price(book(i).price)}</span></div>`).join('')}
+      ${books.map(b => `<div class="row-t"><span>${esc(L(b).t)}</span><span>${price(b.price)}</span></div>`).join('')}
       <div class="row-t grand"><span>${t('total')}</span><span>${price(sub)}</span></div>
-      <button class="btn btn-wide" style="margin-top:16px" id="go">${t('co_pay_btn')} ${price(sub)}</button>
-      <p class="note">${t('co_secure')}</p>
+      <button class="btn btn-wide" style="margin-top:16px" id="go" type="button">${t('co_pay_btn')} ${price(sub)}</button>
     </aside></div>`;
-  document.getElementById('go').onclick=()=>{
-    const em=document.getElementById('em').value||'you@email.com';
-    const ref='KW-'+(10429+Math.floor(Math.random()*70));
-    const lib=state.lib;
-    ids.forEach(id=>lib.push({id:id,order:ref,ts:Date.now(),used:0,max:3,days:7}));
-    state.lib=lib; state.cart=[];
-    location.href='success.html?o='+ref+'&e='+encodeURIComponent(em);
-  };
+
+  document.getElementById('go').onclick = submit;
+}
+
+function problem(title, detail, action) {
+  const box = document.getElementById('co-problem');
+  if (!box) return;
+  box.innerHTML = `<div class="empty" style="margin-top:20px">
+    <h3>${esc(title)}</h3><p>${esc(detail)}</p>
+    ${action ? `<button class="btn btn-ghost" id="co-action" type="button">${esc(action.label)}</button>` : ''}</div>`;
+  if (action) document.getElementById('co-action').onclick = action.run;
+}
+
+async function submit() {
+  const name = document.getElementById('nm').value.trim();
+  const email = document.getElementById('em').value.trim();
+  const button = document.getElementById('go');
+
+  if (!name || !email || !email.includes('@')) {
+    problem(t('co_err_t'), t('co_email_help'));
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = t('co_placing');
+
+  /* Fils as an integer, not the decimal: JavaScript numbers are floats, and a total
+     that drifts by a fils would be refused as a changed price on an order that never
+     changed. */
+  const totalFils = state.cart
+    .map(book).filter(Boolean)
+    .reduce((n, b) => n + Math.round(b.price * 1000), 0);
+
+  let response, body;
+  try {
+    response = await fetch('/api/checkout', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'Idempotency-Key': idempotencyKey() },
+      body: JSON.stringify({
+        bookIds: state.cart, name, email, language: state.lang, clientTotalFils: totalFils
+      })
+    });
+    body = await response.json().catch(() => null);
+  } catch (e) {
+    button.disabled = false;
+    button.textContent = t('co_pay_btn');
+    problem(t('co_err_t'), t('err_cat_d'), { label: t('co_retry'), run: submit });
+    return;
+  }
+
+  if (response.ok) {
+    clearCheckoutKey();
+    state.cart = [];
+    location.href = 'success.html';
+    return;
+  }
+
+  button.disabled = false;
+  button.textContent = t('co_pay_btn');
+
+  // The catalogue price moved while the cart sat open. The buyer is told, and sees
+  // the new price, rather than being charged an amount they never agreed to.
+  if (response.status === 409) {
+    problem(t('co_stale_t'), (body && body.message) || '', {
+      label: t('co_stale_cta'),
+      run: () => location.href = 'cart.html'
+    });
+    return;
+  }
+
+  problem(t('co_err_t'), (body && body.message) || t('err_cat_d'));
 }
 </script>
 </body></html>

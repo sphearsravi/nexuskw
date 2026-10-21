@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Your download — Nexus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Noto+Naskh+Arabic:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+<header id="site-header"></header>
+<main class="wrap"><div id="main"></div></main>
+<footer id="site-footer"></footer>
+<script src="assets/js/api.js"></script>
+<script src="assets/js/i18n.js"></script>
+<script src="assets/js/site.js"></script>
+<script>
+/* The landing page for a download link.
+ *
+ * The token is in the fragment, not the query string: a fragment is never sent to the
+ * server in a request line and never reaches a third party through Referer, so the
+ * link can be mailed without the token appearing in anybody's access log. The page
+ * reads it client-side and asks the status endpoint about it.
+ *
+ * Asking for the status first means an expired or exhausted link explains itself
+ * instead of the browser starting a download that returns an error document.
+ */
+async function render() {
+  const m = document.getElementById('main');
+  const token = (location.hash || '').replace(/^#/, '').trim();
+
+  if (!token) { gone(t('dl_unknown')); return; }
+
+  let s;
+  try {
+    const r = await fetch('/api/downloads/' + encodeURIComponent(token) + '/status',
+                          { headers: { accept: 'application/json' } });
+    if (r.status === 404) { gone(t('dl_unknown')); return; }
+    if (!r.ok) throw new Error('unavailable');
+    s = await r.json();
+  } catch (e) { catalogueDown(); return; }
+
+  const reason = {
+    Expired: t('dl_expired'),
+    Exhausted: t('dl_exhausted'),
+    Revoked: t('dl_revoked')
+  }[s.state];
+
+  if (reason) { gone(reason); return; }
+
+  const title = isAR() ? s.titleAr : s.titleEn;
+
+  m.innerHTML = `<div class="ok">
+    <div class="ok-mark">&#10003;</div>
+    <h1>${t('dl_t')}</h1>
+    <p><strong>${esc(title)}</strong></p>
+    <p class="muted">${t('dl_d')}</p>
+    <div class="btns">
+      <a class="btn" id="go" href="${esc(s.downloadUrl)}" rel="noreferrer">${t('dl_btn')}</a>
+    </div>
+    <p class="ref">${t('ok_ref')} ${esc(s.orderNumber)} · ${tf('dl_left', { n: s.left, max: s.max })}</p>
+  </div>`;
+}
+
+function gone(detail) {
+  document.getElementById('main').innerHTML = `<div class="empty">
+    <h3>${t('dl_gone_t')}</h3>
+    <p>${esc(detail)}</p>
+    <p class="muted">${t('dl_help')}</p>
+    <a class="btn btn-ghost" href="shop.html">${t('nf_cta')}</a>
+  </div>`;
+}
+
+// A link opened from an email arrives with the fragment already set; this also keeps
+// the page honest if someone edits it in the address bar.
+window.addEventListener('hashchange', render);
+</script>
+</body></html>

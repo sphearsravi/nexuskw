@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Nexus.Application.Orders;
@@ -20,22 +21,46 @@ public sealed record CheckoutResponse(
     string Status,
     string? PaymentUrl);
 
+public sealed record OrderLine(string TitleEn, string TitleAr, string AuthorEn, string AuthorAr, decimal PriceKwd);
+
+public sealed record CheckoutResult(
+    string OrderNumber,
+    string Status,
+    decimal TotalKwd,
+    string Currency,
+    string Language,
+    string BuyerEmail,
+    IReadOnlyList<OrderLine> Items,
+    bool PaymentEnabled);
+
 public sealed record ProblemResponse(string Code, string Message, int? BookId);
 
 /// <summary>
 /// The one public way to create an order (decision R1). Two entry points would be two
 /// places a total could come from; this way there is exactly one.
 /// <para>
-/// Payment is not wired yet. Stage B is held until there is a captured Tap sandbox
+/// The order reference is handed back in an HttpOnly cookie, not in a URL (decision R2).
+/// The confirmation page therefore has no query string, which is what stops the
+/// reference leaking to a third party through the <c>Referer</c> header — a stronger fix
+/// than the response header, because it removes the thing that would leak.
+/// </para>
+/// <para>
+/// Payment is not wired yet: Stage B is held until there is a captured Tap sandbox
 /// delivery to verify the signature against, so this creates the Pending order and
-/// returns <c>paymentUrl: null</c>. The storefront shows that honestly rather than
-/// pretending to take money.
+/// returns <c>paymentUrl: null</c>.
 /// </para>
 /// </summary>
 [ApiController]
 [Route("api/checkout")]
-public sealed class CheckoutController(IOrderService orders, ILogger<CheckoutController> log) : ControllerBase
+public sealed class CheckoutController(
+    IOrderService orders,
+    IDataProtectionProvider protection,
+    ILogger<CheckoutController> log) : ControllerBase
 {
+    private const string CookieName = "nexus_order";
+
+    private IDataProtector Protector => protection.CreateProtector("Nexus.CheckoutResult.v1");
+
     [HttpPost]
     [EnableRateLimiting("checkout")]
     public async Task<IActionResult> Create(
@@ -61,6 +86,8 @@ public sealed class CheckoutController(IOrderService orders, ILogger<CheckoutCon
         if (result.AlreadyExisted)
             log.LogInformation("Checkout replayed for {OrderNumber}; returning the existing order.", order.OrderNumber);
 
+        IssueOrderCookie(order.OrderNumber);
+
         var body = new CheckoutResponse(
             order.OrderNumber,
             order.TotalKwd,
@@ -75,4 +102,55 @@ public sealed class CheckoutController(IOrderService orders, ILogger<CheckoutCon
             ? Ok(body)
             : CreatedAtAction(nameof(Create), new { order = order.OrderNumber }, body);
     }
+
+    /// <summary>
+    /// What the confirmation page reads. Authorised by the cookie alone — no order
+    /// number, no email and no token in the URL, so there is nothing in the address bar
+    /// to leak, share by accident or guess.
+    /// </summary>
+    [HttpGet("result")]
+    public async Task<IActionResult> Result(CancellationToken ct)
+    {
+        if (!Request.Cookies.TryGetValue(CookieName, out var sealed_) || string.IsNullOrEmpty(sealed_))
+            return NotFound();
+
+        string orderNumber;
+        try { orderNumber = Protector.Unprotect(sealed_); }
+        catch (System.Security.Cryptography.CryptographicException)
+        {
+            // Tampered, or protected with a key ring this server no longer has.
+            Response.Cookies.Delete(CookieName);
+            return NotFound();
+        }
+
+        var order = await orders.GetByNumberAsync(orderNumber, ct);
+        if (order is null) return NotFound();
+
+        var items = order.Items
+            .Select(i => new OrderLine(i.TitleEnSnapshot, i.TitleArSnapshot,
+                                       i.AuthorEnSnapshot, i.AuthorArSnapshot, i.UnitPriceKwd))
+            .ToList();
+
+        return Ok(new CheckoutResult(
+            order.OrderNumber,
+            order.Status.ToString(),
+            order.TotalKwd,
+            order.Currency,
+            order.Language,
+            order.BuyerEmailSnapshot,
+            items,
+            PaymentEnabled: false));
+    }
+
+    private void IssueOrderCookie(string orderNumber) =>
+        Response.Cookies.Append(CookieName, Protector.Protect(orderNumber), new CookieOptions
+        {
+            HttpOnly = true,
+            // Lax rather than Strict: the buyer will return from the payment page on
+            // another origin, and Strict would drop the cookie on that navigation.
+            SameSite = SameSiteMode.Lax,
+            Secure = Request.IsHttps,
+            IsEssential = true,
+            MaxAge = TimeSpan.FromHours(24)
+        });
 }
