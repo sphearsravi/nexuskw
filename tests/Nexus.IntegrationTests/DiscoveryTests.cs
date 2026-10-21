@@ -26,7 +26,10 @@ public sealed class DiscoveryTests
             builder.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(
                 new Dictionary<string, string?>
                 {
-                    ["ConnectionStrings:Nexus"] = NexusApp.LocalDefault,
+                    // NexusApp.Connection, not LocalDefault: CI runs against a service container
+                    // named by NEXUS_TEST_DB, and hardcoding the local SQLEXPRESS there is a
+                    // connection failure that surfaces as a 500 from the sitemap query.
+                    ["ConnectionStrings:Nexus"] = NexusApp.Connection,
                     ["Nexus:MigrateOnStartup"] = "false",
                     ["Site:PublicBaseUrl"] = "https://nexus.example",
                 }));

@@ -18,11 +18,17 @@ namespace Nexus.IntegrationTests;
 /// </summary>
 public sealed class NexusApp : WebApplicationFactory<Program>, IAsyncLifetime
 {
+    /// <summary>
+    /// The connection every test host must use. LocalDefault alone is wrong in CI,
+    /// where the database is a service container named by NEXUS_TEST_DB - a host that
+    /// hardcodes the local instance reaches for a SQL Express that is not on the runner
+    /// and fails as a 500 from whatever first touches the database.
+    /// </summary>
+    public static string Connection =>
+        Environment.GetEnvironmentVariable("NEXUS_TEST_DB") is { Length: > 0 } s ? s : LocalDefault;
+
     public const string LocalDefault =
         @"Server=(local)\SQLEXPRESS;Database=NexusTest;Trusted_Connection=True;TrustServerCertificate=True";
-
-    private static string Connection =>
-        Environment.GetEnvironmentVariable("NEXUS_TEST_DB") is { Length: > 0 } s ? s : LocalDefault;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

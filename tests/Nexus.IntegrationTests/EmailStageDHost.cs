@@ -65,7 +65,7 @@ internal sealed class EmailStageDHost : IDisposable
     }
 
     public static string Connection =>
-        Environment.GetEnvironmentVariable("NEXUS_TEST_DB") is { Length: > 0 } s ? s : NexusApp.LocalDefault;
+        NexusApp.Connection;   // one definition: it already honours NEXUS_TEST_DB
 
     public StageDClock Clock { get; } = new(new DateTimeOffset(2026, 10, 21, 9, 0, 0, TimeSpan.Zero));
     public StageDSettings Settings { get; } = new();

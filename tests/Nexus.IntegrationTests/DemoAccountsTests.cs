@@ -25,7 +25,7 @@ public sealed class DemoAccountsTests
             builder.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(
                 new Dictionary<string, string?>
                 {
-                    ["ConnectionStrings:Nexus"] = NexusApp.LocalDefault,
+                    ["ConnectionStrings:Nexus"] = NexusApp.Connection,   // NEXUS_TEST_DB in CI
                     ["Nexus:MigrateOnStartup"] = "false",
                     // Present in configuration on purpose: the environment, not the
                     // absence of settings, must be what withholds them.
