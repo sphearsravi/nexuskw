@@ -11,7 +11,7 @@ public class EmailComposerTests
     private static readonly DateTimeOffset Expires = new(2026, 10, 28, 9, 15, 0, TimeSpan.FromHours(3));
 
     private const string Base = "https://nexus.example";
-    private const string Token = "7F3K2M9QX1VB4N6ZPR8TKD";
+    private const string Token = "TEST-TOKEN-NOT-A-REAL-GRANT";
 
     private static EmailModel Model(
         string language, int items = 1, int links = 1, int maxDownloads = 3, int used = 0) =>

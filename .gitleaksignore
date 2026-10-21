@@ -1,0 +1,14 @@
+# Findings reviewed and judged not to be secrets.
+#
+# Each line is a gitleaks fingerprint: commit:path:rule:line. Add one ONLY after
+# looking at the actual match and concluding it is not a credential. A blanket
+# rule exclusion would be easier and would also switch the check off for the
+# case it exists to catch.
+
+# A fake download token in an email-rendering test fixture: 22 characters of
+# Crockford base32, which is exactly the shape a real grant token has, so the
+# generic-api-key rule fires on its entropy. It is a literal in a unit test and
+# has never been a live token. The fixture now uses an obviously-fake value so
+# this does not recur, but the original commit is already pushed and history is
+# not being rewritten for it.
+54326e9c809ae339a501dcc695dc4629c4d8d785:tests/Nexus.UnitTests/Email/EmailComposerTests.cs:generic-api-key:14
