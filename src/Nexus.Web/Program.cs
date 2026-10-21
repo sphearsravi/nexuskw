@@ -151,7 +151,28 @@ app.Use(async (ctx, next) =>
 
 // The storefront is static HTML, CSS and JS served verbatim from wwwroot.
 app.UseDefaultFiles();
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    /* Revalidate every time.
+     *
+     * Without an explicit Cache-Control, a browser applies heuristic caching: it may
+     * serve a stored copy for a while without asking. For unversioned files that
+     * means a fixed page keeps rendering broken for whoever already visited — which
+     * is exactly what happened here with the sign-in form, and would happen to real
+     * customers after any deploy.
+     *
+     * "no-cache" does not mean "do not store": the copy is kept and revalidated, so
+     * an unchanged file answers 304 with no body. The cost is one conditional
+     * request; the alternative is shipping a fix nobody receives.
+     *
+     * When these assets are versioned by filename, the fingerprinted ones can move
+     * to immutable and only the HTML needs to stay like this.
+     */
+    OnPrepareResponse = ctx =>
+    {
+        ctx.Context.Response.Headers.CacheControl = "no-cache, must-revalidate";
+    }
+});
 
 app.UseRouting();
 app.UseRateLimiter();
