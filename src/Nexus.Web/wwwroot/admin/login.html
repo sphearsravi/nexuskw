@@ -3,12 +3,39 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
 <title>Sign in — Nexus control panel</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Noto+Naskh+Arabic:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/css/site.css">
 <link rel="stylesheet" href="../assets/css/admin.css">
+<style>
+  /* Scoped to this page: the sign-in card is the only place in the panel that
+     is seen by someone who is not yet signed in, so it gets a little care. */
+  .login-wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+  .login { width: 100%; max-width: 25rem; }
+  .login .brand { margin-bottom: 4px; }
+  .login-lede { color: var(--muted); font-size: 13.5px; margin: 0 0 22px; }
+  .pw-wrap { position: relative; display: block; }
+  .pw-wrap input { width: 100%; padding-inline-end: 4.2rem; }
+  .pw-peek {
+    position: absolute; inset-inline-end: 8px; top: 50%; transform: translateY(-50%);
+    background: none; border: 0; cursor: pointer; font: inherit; font-size: 12.5px;
+    color: var(--muted); padding: 4px 6px; border-radius: 6px;
+  }
+  .pw-peek:hover { color: var(--ink); }
+  .login .err {
+    border: 1px solid var(--rule); border-inline-start: 3px solid #a3382f;
+    border-radius: 8px; padding: 10px 12px; margin: 0 0 14px; font-size: 13.5px;
+  }
+  .demo {
+    margin-top: 20px; padding-top: 16px; border-top: 1px dashed var(--rule);
+  }
+  .demo h4 { margin: 0 0 4px; font-size: 13px; letter-spacing: .02em; text-transform: uppercase; color: var(--muted); }
+  .demo p { margin: 0 0 10px; font-size: 12.5px; color: var(--muted); }
+  .login-foot { text-align: center; margin-top: 18px; display: flex; gap: 14px; justify-content: center; }
+</style>
 </head>
 <body>
 <div class="login-wrap"><div class="login set" id="box"></div></div>
@@ -21,38 +48,100 @@
 /* The demo's sign-in button was an <a> to the dashboard. This posts a password.
    The antiforgery token comes from GET /admin/api/session, which is the one
    anonymous endpoint, so the form can obtain one before it has a session. */
-let LOGIN = { busy: false, error: null };
+let LOGIN = { busy: false, error: null, peek: false, demo: null };
+
+/* The demo button exists only if the server offers credentials, and the server
+   offers them only outside production. Nothing is hardcoded in this page, so
+   there is nothing to leak when it ships and nothing to remember to remove. */
+async function loadDemo() {
+  try {
+    const r = await fetch('/api/dev/demo-accounts', { headers: { accept: 'application/json' } });
+    if (!r.ok) return;                                   // 404 in production
+    const all = await r.json();
+    LOGIN.demo = all.find(a => a.label === 'admin') || null;
+  } catch (e) { /* no button, which is the safe direction */ }
+}
 
 function render() {
+  /* Whatever is typed survives a repaint.
+     render() replaces the whole card, and it runs more than once: site.js paints on
+     DOMContentLoaded, the demo lookup repaints after it resolves, and the language
+     toggle repaints on demand. Without this, any of those lands while someone is
+     typing and silently empties the form — which is how this page shipped unable to
+     sign anybody in. */
+  const keep = {
+    em: (document.getElementById('em') || {}).value || '',
+    pw: (document.getElementById('pw') || {}).value || ''
+  };
+
   document.getElementById('box').innerHTML = `
-    <a class="brand" href="../index.html" style="margin-bottom:20px;display:flex">
+    <a class="brand" href="../index.html">
       <span class="brand-mark"></span>
       <span><span class="brand-name">${t('brand')}</span><span class="brand-sub">${t('a_title')}</span></span></a>
-    <form id="form" autocomplete="on">
+    <p class="login-lede">${t('a_hint')}</p>
+
+    <form id="form" autocomplete="on" novalidate>
+      ${LOGIN.error ? `<p class="note err" role="alert">${esc(LOGIN.error)}</p>` : ''}
+
       <div class="f"><label for="em">${t('a_user')}</label>
-        <input id="em" name="email" type="email" autocomplete="username" required></div>
+        <input id="em" name="email" type="email" autocomplete="username"
+               autocapitalize="off" spellcheck="false" required></div>
+
       <div class="f"><label for="pw">${t('a_pass')}</label>
-        <input id="pw" name="password" type="password" autocomplete="current-password" required></div>
-      ${LOGIN.error ? `<p class="note err">${esc(LOGIN.error)}</p>` : ''}
+        <span class="pw-wrap">
+          <input id="pw" name="password" type="${LOGIN.peek ? 'text' : 'password'}"
+                 autocomplete="current-password" required>
+          <button type="button" class="pw-peek" id="peek"
+                  aria-pressed="${LOGIN.peek}">${LOGIN.peek ? t('a_hide') : t('a_show')}</button>
+        </span></div>
+
       <button class="btn btn-wide" type="submit" ${LOGIN.busy ? 'disabled' : ''}>
         ${LOGIN.busy ? t('a_signing') : t('a_signin')}</button>
     </form>
-    <p class="note" style="text-align:center">${t('a_hint')}</p>
-    <p style="text-align:center;margin-top:14px"><button class="lang" data-lang>${isAR() ? 'English' : 'العربية'}</button></p>`;
+
+    ${LOGIN.demo ? `<div class="demo">
+      <h4>${t('a_demo_t')}</h4>
+      <p>${t('a_demo_d')}</p>
+      <button class="btn btn-ghost btn-wide" type="button" id="demo"
+              ${LOGIN.busy ? 'disabled' : ''}>${t('a_demo_btn')}</button>
+    </div>` : ''}
+
+    <div class="login-foot">
+      <a class="link-btn" href="../index.html">${t('a_exit')}</a>
+      <button class="lang" data-lang>${isAR() ? 'English' : 'العربية'}</button>
+    </div>`;
+
+  document.getElementById('em').value = keep.em;
+  document.getElementById('pw').value = keep.pw;
 
   document.getElementById('form').onsubmit = submit;
+
+  const peek = document.getElementById('peek');
+  if (peek) peek.onclick = () => {
+    LOGIN.peek = !LOGIN.peek;
+    render();                       // render() carries the typed values across
+    document.getElementById('pw').focus();
+  };
+
+  const demo = document.getElementById('demo');
+  if (demo) demo.onclick = () => submit(null, LOGIN.demo);
+
+  const first = document.getElementById('em');
+  if (first && !LOGIN.busy) first.focus();
 }
 
-async function submit(ev) {
-  ev.preventDefault();
+async function submit(ev, preset) {
+  if (ev) ev.preventDefault();
   if (LOGIN.busy) return;
 
   /* Read the fields BEFORE anything re-renders.
      render() replaces the whole box, inputs included, so reading them after it
      has run yields the empty values of the freshly drawn form — which posted
      blank credentials and made signing in impossible. */
-  const email = document.getElementById('em').value.trim();
-  const password = document.getElementById('pw').value;
+  const email = preset ? preset.email : document.getElementById('em').value.trim();
+  const password = preset ? preset.password : document.getElementById('pw').value;
+
+  if (!email || !password) { LOGIN.error = t('a_bad_empty'); render(); return; }
 
   LOGIN.busy = true;
   LOGIN.error = null;
@@ -72,8 +161,9 @@ async function submit(ev) {
   render();
 }
 
-/* Admin.req sends anyone unauthenticated back here, so a token has to exist
-   before the first submit; fetching it on load also warms the cookie. */
-document.addEventListener('DOMContentLoaded', () => { Admin.session(); });
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadDemo();
+  render();
+});
 </script>
 </body></html>

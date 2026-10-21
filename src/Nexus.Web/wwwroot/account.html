@@ -35,6 +35,19 @@
  */
 const form = { tab: 'signin', name: '', email: '', password: '', lang: null, msg: null };
 
+/* Demo credentials, if the server offers any. It only does so outside production,
+   so nothing is hardcoded in this page and there is nothing to strip before it
+   ships — production simply gets a 404 and no button. */
+let DEMO = null;
+
+async function loadDemo() {
+  try {
+    const r = await fetch('/api/dev/demo-accounts', { headers: { accept: 'application/json' } });
+    if (!r.ok) return;
+    DEMO = (await r.json()).find(a => a.label === 'customer') || null;
+  } catch (e) { /* no button, which is the safe direction */ }
+}
+
 function message() {
   if (!form.msg) return '';
   const cls = form.msg.kind === 'bad' ? 'form-msg bad' : 'form-msg good';
@@ -64,7 +77,12 @@ function render() {
       ${field('ac_password', 'password', 'password', form.password, 'autocomplete="current-password"')}
       <button class="btn" data-go="signin">${t('ac_signin_btn')}</button>
       <p class="link-row"><a href="#" data-tab="forgot">${t('ac_forgot_link')}</a></p>
-      <p class="link-row">${t('ac_new')} <a href="#" data-tab="register">${t('ac_tab_register')}</a></p>`,
+      <p class="link-row">${t('ac_new')} <a href="#" data-tab="register">${t('ac_tab_register')}</a></p>
+      ${DEMO ? `<div class="demo-box">
+        <h4>${t('ac_demo_t')}</h4>
+        <p>${t('ac_demo_d')}</p>
+        <button class="btn btn-ghost" data-go="demo">${t('ac_demo_btn')}</button>
+      </div>` : ''}`,
 
     register: `
       ${field('ac_name', 'text', 'name', form.name, 'autocomplete="name"')}
@@ -119,7 +137,12 @@ async function submit(action, button) {
   button.textContent = t('ac_working');
 
   let r;
-  if (action === 'signin') {
+  if (action === 'demo') {
+    // Development only: DEMO is null unless the server offered credentials, and it
+    // only does that outside production, so this branch cannot exist on a live store.
+    r = await Account.signIn({ email: DEMO.email, password: DEMO.password });
+    if (r.ok) { location.href = 'library.html'; return; }
+  } else if (action === 'signin') {
     r = await Account.signIn({ email: form.email, password: form.password });
     if (r.ok) { location.href = 'library.html'; return; }
   } else if (action === 'register') {
@@ -160,6 +183,14 @@ document.addEventListener('keydown', e => {
   if (e.key !== 'Enter' || !e.target.closest('#acct-form')) return;
   const go = document.querySelector('[data-go]');
   if (go) { e.preventDefault(); submit(go.dataset.go, go); }
+});
+
+/* Registered after site.js's own listener, so this runs once the first paint has
+   happened. Only repaints when there is actually a demo account to show, which
+   means production does exactly one paint and never sees this code do anything. */
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadDemo();
+  if (DEMO) paint();
 });
 </script>
 </body></html>

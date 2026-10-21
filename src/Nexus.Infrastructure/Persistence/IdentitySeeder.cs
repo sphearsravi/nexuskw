@@ -74,5 +74,48 @@ public sealed class IdentitySeeder(
 
         await users.AddToRoleAsync(admin, NexusRoles.Admin);
         log.LogInformation("Seeded the first administrator, {Email}.", email);
+
+        await SeedDemoCustomerAsync(isProduction);
+    }
+
+    /// <summary>
+    /// A ready, already-confirmed customer so the storefront can be signed into without
+    /// going through an email round trip.
+    /// <para>
+    /// Refused outright in production. A known account with a known password on a live
+    /// store is a back door, however it is labelled, and this one would be published in
+    /// the repository's own configuration.
+    /// </para>
+    /// </summary>
+    private async Task SeedDemoCustomerAsync(bool isProduction)
+    {
+        if (isProduction) return;
+
+        var email = config["Demo:CustomerEmail"];
+        var password = config["Demo:CustomerPassword"];
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password)) return;
+        if (await users.FindByEmailAsync(email) is not null) return;
+
+        var demo = new NexusUser
+        {
+            UserName = email,
+            Email = email,
+            // Confirmed deliberately: the point is to skip the round trip, and the
+            // confirmation gate still governs guest-order claiming for real accounts.
+            EmailConfirmed = true,
+            DisplayName = "Demo Buyer",
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+
+        var created = await users.CreateAsync(demo, password);
+        if (!created.Succeeded)
+        {
+            log.LogWarning("Could not seed the demo customer: {Errors}",
+                string.Join("; ", created.Errors.Select(e => e.Description)));
+            return;
+        }
+
+        await users.AddToRoleAsync(demo, NexusRoles.Customer);
+        log.LogInformation("Seeded the demo customer, {Email}. Development only.", email);
     }
 }
