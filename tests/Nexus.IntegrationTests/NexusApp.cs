@@ -33,7 +33,24 @@ public sealed class NexusApp : WebApplicationFactory<Program>, IAsyncLifetime
             {
                 ["ConnectionStrings:Nexus"] = Connection,
                 // The fixture owns the schema and the seed, so startup does not.
-                ["Nexus:MigrateOnStartup"] = "false"
+                ["Nexus:MigrateOnStartup"] = "false",
+
+                // The host runs as Development, so it would otherwise inherit
+                // appsettings.Development.json — a developer's local conveniences.
+                // Two of those are things this suite asserts about, so they are pinned
+                // here and the tests stop depending on whoever last edited that file.
+                //
+                // Rate limits: the production defaults, because tests prove the limiter
+                // rejects. Development raises them so an end-to-end run is not throttled.
+                ["RateLimits:checkout"] = "10",
+                ["RateLimits:download"] = "30",
+                ["RateLimits:auth"] = "8",
+                ["RateLimits:catalogue"] = "300",
+
+                // Email: no transport, because tests assert a queued message is visibly
+                // suppressed. Development uses a file drop so registration can actually
+                // be completed by hand.
+                ["Email:Transport"] = "None",
             }));
     }
 

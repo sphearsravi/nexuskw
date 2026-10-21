@@ -47,6 +47,13 @@ async function submit(ev) {
   ev.preventDefault();
   if (LOGIN.busy) return;
 
+  /* Read the fields BEFORE anything re-renders.
+     render() replaces the whole box, inputs included, so reading them after it
+     has run yields the empty values of the freshly drawn form — which posted
+     blank credentials and made signing in impossible. */
+  const email = document.getElementById('em').value.trim();
+  const password = document.getElementById('pw').value;
+
   LOGIN.busy = true;
   LOGIN.error = null;
   render();
@@ -55,10 +62,7 @@ async function submit(ev) {
   // antiforgery cookie to have been replaced.
   await Admin.session();
 
-  const r = await Admin.req('POST', 'session', {
-    email: document.getElementById('em').value,
-    password: document.getElementById('pw').value
-  });
+  const r = await Admin.req('POST', 'session', { email, password });
 
   LOGIN.busy = false;
 

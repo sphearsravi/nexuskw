@@ -64,27 +64,38 @@ builder.Services.AddRateLimiter(o =>
     static string ClientKey(HttpContext c) =>
         c.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
+    // The limits below are the production defaults. They are overridable from
+    // configuration for one reason: an end-to-end suite drives the real sign-in
+    // form dozens of times in a minute from a single address, and a fixed budget
+    // of 8 makes that suite fail for a reason unrelated to what it is testing.
+    //
+    // The limiter itself is NOT weakened — only its numbers, and only where they
+    // are set. The integration tests still exhaust the configured budget and
+    // assert 429, so the behaviour stays covered wherever the limit is.
+    int Limit(string name, int production) =>
+        builder.Configuration.GetValue($"RateLimits:{name}", production);
+
     // Creating an order costs a database write and, in Phase 3, a gateway call.
     o.AddPolicy("checkout", c => RateLimitPartition.GetFixedWindowLimiter(
         ClientKey(c), _ => new FixedWindowRateLimiterOptions
-        { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+        { PermitLimit = Limit("checkout", 10), Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 
     // Downloads are per token, not per IP: a household behind one address must
     // not throttle itself, and a shared token is caught by the grant's own count.
     o.AddPolicy("download", c => RateLimitPartition.GetFixedWindowLimiter(
         c.Request.RouteValues["token"]?.ToString() ?? ClientKey(c),
         _ => new FixedWindowRateLimiterOptions
-        { PermitLimit = 30, Window = TimeSpan.FromMinutes(5), QueueLimit = 0 }));
+        { PermitLimit = Limit("download", 30), Window = TimeSpan.FromMinutes(5), QueueLimit = 0 }));
 
     // Sign-in and password reset: slow enough to make guessing useless.
     o.AddPolicy("auth", c => RateLimitPartition.GetFixedWindowLimiter(
         ClientKey(c), _ => new FixedWindowRateLimiterOptions
-        { PermitLimit = 8, Window = TimeSpan.FromMinutes(5), QueueLimit = 0 }));
+        { PermitLimit = Limit("auth", 8), Window = TimeSpan.FromMinutes(5), QueueLimit = 0 }));
 
     // The catalogue is cheap and cached; this is a flood stop, not a quota.
     o.AddPolicy("catalogue", c => RateLimitPartition.GetFixedWindowLimiter(
         ClientKey(c), _ => new FixedWindowRateLimiterOptions
-        { PermitLimit = 300, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+        { PermitLimit = Limit("catalogue", 300), Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
 
 // An upload cap exists so a large PDF cannot exhaust a 512 MB shared app pool.

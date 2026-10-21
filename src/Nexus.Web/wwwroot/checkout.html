@@ -57,24 +57,62 @@ function render() {
   const books = ids.map(book).filter(Boolean);
   const sub = books.reduce((s, b) => s + b.price, 0);
 
+  const limits = Delivery.limits();
+  const count = books.length === 1 ? tf('co_items', { n: 1 }) : tf('co_items_p', { n: books.length });
+
   m.innerHTML = `<div class="two">
     <form class="form" id="pay" autocomplete="on" novalidate>
       <fieldset class="fs"><legend>${t('co_contact')}</legend>
         <div class="form">
           <div><label for="nm">${t('co_name')}</label>
-            <input id="nm" name="name" autocomplete="name" required maxlength="128"></div>
+            <input id="nm" name="name" autocomplete="name" required minlength="2" maxlength="128"></div>
           <div><label for="em">${t('co_email')}</label>
             <input id="em" name="email" type="email" autocomplete="email" required maxlength="256">
-            <p class="help">${t('co_email_help')}</p></div>
+            <p class="help">${t('co_whyemail')}</p></div>
         </div>
+        <p class="note">${t('co_noaccount')}</p>
       </fieldset>
+
+      <fieldset class="fs"><legend>${t('co_get_t')}</legend>
+        <ul class="toc">
+          <li><span>&#10003;</span>${t('co_get_pdf')}</li>
+          <li><span>&#10003;</span>${t('co_get_langs')}</li>
+          <li><span>&#10003;</span>${tf('co_get_limit', limits)}</li>
+          <li><span>&#10003;</span>${t('co_get_stamp')}</li>
+        </ul>
+      </fieldset>
+
+      <fieldset class="fs"><legend>${t('co_next_t')}</legend>
+        <ul class="toc">
+          <li><span>1.</span>${t('co_next_1')}</li>
+          <li><span>2.</span>${t('co_next_2')}</li>
+          <li><span>3.</span>${t('co_next_3')}</li>
+        </ul>
+      </fieldset>
+
       <div id="co-problem"></div>
     </form>
+
     <aside class="panel">
       <h3>${t('co_summary')}</h3>
-      ${books.map(b => `<div class="row-t"><span>${esc(L(b).t)}</span><span>${price(b.price)}</span></div>`).join('')}
+      <p class="muted" style="font-size:13.5px;margin:-4px 0 14px">${count}</p>
+
+      ${books.map(b => `<div class="line" style="padding:10px 0">
+          <a href="book.html?id=${b.id}" style="width:54px;flex:none">${cover(b)}</a>
+          <div class="line-body">
+            <a class="line-title" href="book.html?id=${b.id}">${esc(L(b).t)}</a>
+            <p class="muted" style="font-size:13px;margin:2px 0 0">${esc(L(b).a)}</p>
+          </div>
+          <span class="price">${price(b.price)}</span>
+        </div>`).join('')}
+
       <div class="row-t grand"><span>${t('total')}</span><span>${price(sub)}</span></div>
+      <p class="note">${t('co_vatfree')}</p>
+
       <button class="btn btn-wide" style="margin-top:16px" id="go" type="button">${t('co_pay_btn')} ${price(sub)}</button>
+      <p style="text-align:center;margin-top:10px">
+        <a class="link-btn" href="cart.html">${t('co_edit')}</a>
+      </p>
     </aside></div>`;
 
   document.getElementById('go').onclick = submit;

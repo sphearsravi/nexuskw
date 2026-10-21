@@ -22,7 +22,7 @@
    different book - a shareable URL that lied about what it pointed to. */
 async function render(){
   const raw = new URLSearchParams(location.search).get('id');
-  const id = /^d+$/.test(raw || '') ? +raw : null;
+  const id = /^\d+$/.test(raw || '') ? +raw : null;
   const main = document.getElementById('main');
 
   let b = null;
