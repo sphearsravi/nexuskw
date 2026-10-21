@@ -32,6 +32,20 @@ function price(kwd) {
 }
 const cartTotal = () => state.cart.reduce((s, id) => s + (book(id) ? book(id).price : 0), 0);
 
+/* ---- dates ----
+ * Built by hand rather than with toLocaleDateString: under ar the locale formatter
+ * yields Arabic-Indic numerals, which PRD §5 forbids outright and the storefront
+ * audit fails the build over. dd/mm/yyyy is what a Kuwaiti reader expects, and it
+ * reads the same in both editions.
+ */
+function shortDate(value) {
+  const d = new Date(value);
+  if (isNaN(d)) return '';
+  const pad = n => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+const daysUntil = value => Math.ceil((new Date(value).getTime() - Date.now()) / 864e5);
+
 /* ---- book cover, drawn not loaded ---- */
 /* each subject gets its own motif, so a shelf of covers reads by category */
 const MOTIF = {
@@ -109,6 +123,10 @@ function chrome() {
     <div class="topbar"><div class="wrap top-in">
       <span class="top-note">${t('top_note')}</span>
       <div class="tools">
+        ${Account.signedIn
+          ? `<a class="lang" href="profile.html">${t('nav_account')}</a>
+             <button class="lang" data-signout>${t('nav_signout')}</button>`
+          : `<a class="lang" href="account.html">${t('nav_signin')}</a>`}
         <button class="lang" data-lang>${isAR() ? 'English' : 'العربية'}</button>
       </div>
     </div></div>
@@ -128,6 +146,7 @@ function chrome() {
           </span>
         </span>
         <a href="library.html"${on('library.html')}>${t('nav_library')}</a>
+        <a href="orders.html"${on('orders.html')}>${t('nav_orders')}</a>
         <a href="admin/index.html" class="nav-admin">${t('nav_admin')}</a>
       </nav>
       <div class="bar-end">
@@ -187,6 +206,13 @@ document.addEventListener('click', e => {
   const rm = e.target.closest('[data-remove]');
   if (rm) { state.cart = state.cart.filter(x => x !== +rm.dataset.remove); paint(); }
 });
+/* Sign-out is a POST, not a link: a GET that ends a session is one a prefetching
+   browser or a mail scanner can fire without anybody clicking it. */
+document.addEventListener('click', async e => {
+  if (!e.target.closest('[data-signout]')) return;
+  await Account.signOut();
+  location.href = 'index.html';
+});
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && e.target.id === 'hq' && e.target.value.trim())
     location.href = 'shop.html?q=' + encodeURIComponent(e.target.value.trim());
@@ -194,6 +220,9 @@ document.addEventListener('keydown', e => {
 /* The catalogue is fetched before the first paint, so every page renders once
    with real data rather than flashing an empty shelf. */
 document.addEventListener('DOMContentLoaded', async () => {
-  await Promise.all([Catalogue.load(), Delivery.load()]);
+  /* The session is resolved before the first paint, alongside the catalogue. A header
+     that renders "Sign in" and corrects itself to "My account" a moment later teaches
+     a reader that the page is guessing. */
+  await Promise.all([Catalogue.load(), Delivery.load(), Account.load()]);
   paint();
 });

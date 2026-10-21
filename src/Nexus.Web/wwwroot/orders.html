@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>My orders — Nexus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Noto+Naskh+Arabic:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+<header id="site-header"></header>
+<main class="wrap">
+  <div class="page-head"><h1 data-i18n="or_title"></h1><p class="muted" data-i18n="or_sub"></p></div>
+  <div id="main"></div>
+</main>
+<footer id="site-footer"></footer>
+<script src="assets/js/api.js"></script>
+<script src="assets/js/i18n.js"></script>
+<script src="assets/js/site.js"></script>
+<script>
+/* AC-5, the list half. Every order this account owns, newest first.
+ *
+ * The server scopes the query by the session's customer id, so there is no order
+ * number in any URL here that would let one account read another's history.
+ */
+let orders = null;
+
+function statusLabel(status) {
+  // Built at runtime from the server's enum name; both languages define all six.
+  return t('or_st_' + String(status).toLowerCase());
+}
+
+async function render() {
+  const m = document.getElementById('main');
+
+  if (!Account.signedIn) {
+    m.innerHTML = `<div class="empty" style="padding-bottom:90px">
+      <h3>${t('lib_signin_t')}</h3><p>${t('lib_signin_d')}</p>
+      <a class="btn" href="account.html">${t('lib_signin_cta')}</a></div>`;
+    return;
+  }
+
+  if (orders === null) {
+    m.innerHTML = `<div class="empty"><p>${t('ac_working')}</p></div>`;
+    const r = await Account.orders();
+    orders = r.ok ? (r.body || []) : [];
+  }
+
+  if (!orders.length) {
+    m.innerHTML = `<div class="empty" style="padding-bottom:90px"><h3>${t('or_empty_t')}</h3>
+      <p>${t('or_empty_d')}</p><a class="btn" href="shop.html">${t('cart_empty_cta')}</a></div>`;
+    return;
+  }
+
+  m.innerHTML = `<table class="tbl">
+    <thead><tr>
+      <th>${t('or_number')}</th><th>${t('or_date')}</th><th>${t('or_status')}</th>
+      <th class="num">${t('or_items')}</th><th class="num">${t('or_total')}</th><th></th>
+    </tr></thead>
+    <tbody>${orders.map(o => `<tr>
+      <td>${esc(o.orderNumber)}</td>
+      <td>${esc(shortDate(o.placedAt))}</td>
+      <td>${esc(statusLabel(o.status))}</td>
+      <td class="num">${o.itemCount}</td>
+      <td class="num">${price(o.totalKwd)}</td>
+      <td class="num"><a href="invoice.html?order=${encodeURIComponent(o.orderNumber)}">${t('or_invoice')}</a></td>
+    </tr>`).join('')}</tbody></table>`;
+}
+</script>
+</body></html>

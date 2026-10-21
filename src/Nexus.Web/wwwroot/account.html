@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Your account — Nexus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,400..700,0..100,0..1&family=Inter:wght@400;500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Noto+Naskh+Arabic:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+<header id="site-header"></header>
+<main class="wrap">
+  <div class="page-head"><h1 data-i18n="ac_title"></h1><p class="muted" data-i18n="ac_sub"></p></div>
+  <div id="main"></div>
+</main>
+<footer id="site-footer"></footer>
+<script src="assets/js/api.js"></script>
+<script src="assets/js/i18n.js"></script>
+<script src="assets/js/site.js"></script>
+<script>
+/* Sign in, register, forgotten password.
+ *
+ * Registering and asking for a reset both end on the same acknowledgement, whatever the
+ * server found. That is not vagueness for its own sake: the alternative tells anyone with
+ * a word list which addresses shop here. The one thing that does vary is whether the mail
+ * can actually be sent, and the page says that plainly rather than sending somebody to
+ * wait at an inbox that will stay empty.
+ *
+ * Typed values live here and not only in the DOM, because switching language repaints the
+ * whole page and a form that empties itself when you reach for the language button is a
+ * form people abandon.
+ */
+const form = { tab: 'signin', name: '', email: '', password: '', lang: null, msg: null };
+
+function message() {
+  if (!form.msg) return '';
+  const cls = form.msg.kind === 'bad' ? 'form-msg bad' : 'form-msg good';
+  return `<div class="${cls}" role="status">
+    <strong>${esc(form.msg.title)}</strong><br>${esc(form.msg.detail)}</div>`;
+}
+
+function field(key, type, name, value, extra) {
+  return `<label class="field"><span>${t(key)}</span>
+    <input type="${type}" name="${name}" value="${esc(value || '')}" ${extra || ''}></label>`;
+}
+
+function render() {
+  const m = document.getElementById('main');
+
+  // Already signed in: there is nothing to do here, and a sign-in form shown to
+  // somebody who is signed in is a bug they will report.
+  if (Account.signedIn) { location.replace('library.html'); return; }
+
+  if (form.lang === null) form.lang = state.lang;
+
+  const tab = b => `<button data-tab="${b}" class="${form.tab === b ? 'on' : ''}">${t('ac_tab_' + b)}</button>`;
+
+  const body = {
+    signin: `
+      ${field('ac_email', 'email', 'email', form.email, 'autocomplete="username"')}
+      ${field('ac_password', 'password', 'password', form.password, 'autocomplete="current-password"')}
+      <button class="btn" data-go="signin">${t('ac_signin_btn')}</button>
+      <p class="link-row"><a href="#" data-tab="forgot">${t('ac_forgot_link')}</a></p>
+      <p class="link-row">${t('ac_new')} <a href="#" data-tab="register">${t('ac_tab_register')}</a></p>`,
+
+    register: `
+      ${field('ac_name', 'text', 'name', form.name, 'autocomplete="name"')}
+      ${field('ac_email', 'email', 'email', form.email, 'autocomplete="username"')}
+      ${field('ac_password', 'password', 'password', form.password, 'autocomplete="new-password"')}
+      <p class="field-hint">${tf('ac_pw_hint', { n: PASSWORD_MIN })}</p>
+      <label class="field"><span>${t('ac_lang')}</span>
+        <select name="lang">
+          <option value="en"${form.lang === 'en' ? ' selected' : ''}>${t('ac_lang_en')}</option>
+          <option value="ar"${form.lang === 'ar' ? ' selected' : ''}>${t('ac_lang_ar')}</option>
+        </select></label>
+      <button class="btn" data-go="register">${t('ac_register_btn')}</button>
+      <p class="link-row">${t('ac_have')} <a href="#" data-tab="signin">${t('ac_tab_signin')}</a></p>`,
+
+    forgot: `
+      ${field('ac_email', 'email', 'email', form.email, 'autocomplete="username"')}
+      <button class="btn" data-go="forgot">${t('ac_forgot_btn')}</button>
+      <p class="link-row">${t('ac_have')} <a href="#" data-tab="signin">${t('ac_tab_signin')}</a></p>`
+  }[form.tab];
+
+  m.innerHTML = `<div class="acct">
+    <div class="seg-tabs">${tab('signin')}${tab('register')}${tab('forgot')}</div>
+    ${message()}
+    <form id="acct-form" autocomplete="on">${body}</form>
+  </div>`;
+}
+
+/* Through form.elements, not form.name: HTMLFormElement already has name, lang and
+   several other properties of its own, and reading f.name gets the form's attribute
+   rather than the input called "name". */
+function capture() {
+  const f = document.getElementById('acct-form');
+  if (!f) return;
+  for (const key of ['name', 'email', 'password', 'lang']) {
+    const el = f.elements.namedItem(key);
+    if (el) form[key] = el.value;
+  }
+}
+
+function acknowledged(body) {
+  // "queued" and "suppressed" differ by the server's transport configuration, never by
+  // whether the address exists, so saying which one happened discloses nothing.
+  form.msg = body && body.delivery === 'suppressed'
+    ? { kind: 'good', title: t('ac_off_t'), detail: t('ac_off_d') }
+    : { kind: 'good', title: t('ac_sent_t'), detail: t('ac_sent_d') };
+  form.password = '';
+}
+
+async function submit(action, button) {
+  capture();
+  button.disabled = true;
+  button.textContent = t('ac_working');
+
+  let r;
+  if (action === 'signin') {
+    r = await Account.signIn({ email: form.email, password: form.password });
+    if (r.ok) { location.href = 'library.html'; return; }
+  } else if (action === 'register') {
+    r = await Account.register({
+      name: form.name, email: form.email, password: form.password, language: form.lang
+    });
+    if (r.ok) { acknowledged(r.body); paint(); return; }
+  } else {
+    r = await Account.forgot({ email: form.email, language: form.lang });
+    if (r.ok) { acknowledged(r.body); paint(); return; }
+  }
+
+  form.msg = {
+    kind: 'bad',
+    title: t('ac_err_t'),
+    detail: accountError(r.status, r.body && r.body.code)
+  };
+  form.password = '';
+  paint();
+}
+
+document.addEventListener('click', e => {
+  const tab = e.target.closest('[data-tab]');
+  if (tab) {
+    e.preventDefault();
+    capture();
+    form.tab = tab.dataset.tab;
+    form.msg = null;
+    paint();
+    return;
+  }
+  const go = e.target.closest('[data-go]');
+  if (go) { e.preventDefault(); submit(go.dataset.go, go); }
+});
+
+// Enter in a text field should submit, the way every other sign-in form does.
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || !e.target.closest('#acct-form')) return;
+  const go = document.querySelector('[data-go]');
+  if (go) { e.preventDefault(); submit(go.dataset.go, go); }
+});
+</script>
+</body></html>
