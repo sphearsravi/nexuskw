@@ -13,21 +13,63 @@
 <body>
 <div class="login-wrap"><div class="login set" id="box"></div></div>
 <script src="../assets/js/api.js"></script>
-<script src="../assets/js/admin-demo.js"></script>
+<script src="../assets/js/admin-api.js"></script>
 <script src="../assets/js/i18n.js"></script>
 <script src="../assets/js/site.js"></script>
 <script src="../assets/js/admin.js"></script>
 <script>
-function render(){
-  document.getElementById('box').innerHTML=`
+/* The demo's sign-in button was an <a> to the dashboard. This posts a password.
+   The antiforgery token comes from GET /admin/api/session, which is the one
+   anonymous endpoint, so the form can obtain one before it has a session. */
+let LOGIN = { busy: false, error: null };
+
+function render() {
+  document.getElementById('box').innerHTML = `
     <a class="brand" href="../index.html" style="margin-bottom:20px;display:flex">
       <span class="brand-mark"></span>
       <span><span class="brand-name">${t('brand')}</span><span class="brand-sub">${t('a_title')}</span></span></a>
-    <div class="f"><label>${t('a_user')}</label><input value="admin@nexus.com"></div>
-    <div class="f"><label>${t('a_pass')}</label><input type="password" value="admin"></div>
-    <a class="btn btn-wide" href="index.html">${t('a_signin')}</a>
+    <form id="form" autocomplete="on">
+      <div class="f"><label for="em">${t('a_user')}</label>
+        <input id="em" name="email" type="email" autocomplete="username" required></div>
+      <div class="f"><label for="pw">${t('a_pass')}</label>
+        <input id="pw" name="password" type="password" autocomplete="current-password" required></div>
+      ${LOGIN.error ? `<p class="note err">${esc(LOGIN.error)}</p>` : ''}
+      <button class="btn btn-wide" type="submit" ${LOGIN.busy ? 'disabled' : ''}>
+        ${LOGIN.busy ? t('a_signing') : t('a_signin')}</button>
+    </form>
     <p class="note" style="text-align:center">${t('a_hint')}</p>
-    <p style="text-align:center;margin-top:14px"><button class="lang" data-lang>${isAR()?'English':'العربية'}</button></p>`;
+    <p style="text-align:center;margin-top:14px"><button class="lang" data-lang>${isAR() ? 'English' : 'العربية'}</button></p>`;
+
+  document.getElementById('form').onsubmit = submit;
 }
+
+async function submit(ev) {
+  ev.preventDefault();
+  if (LOGIN.busy) return;
+
+  LOGIN.busy = true;
+  LOGIN.error = null;
+  render();
+
+  // Always re-read the token: the page may have sat open long enough for the
+  // antiforgery cookie to have been replaced.
+  await Admin.session();
+
+  const r = await Admin.req('POST', 'session', {
+    email: document.getElementById('em').value,
+    password: document.getElementById('pw').value
+  });
+
+  LOGIN.busy = false;
+
+  if (r.ok) { location.replace('index.html'); return; }
+
+  LOGIN.error = r.status === 429 ? t('a_busy') : t('a_bad');
+  render();
+}
+
+/* Admin.req sends anyone unauthenticated back here, so a token has to exist
+   before the first submit; fetching it on load also warms the cookie. */
+document.addEventListener('DOMContentLoaded', () => { Admin.session(); });
 </script>
 </body></html>

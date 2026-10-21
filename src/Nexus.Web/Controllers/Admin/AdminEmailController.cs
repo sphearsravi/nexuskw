@@ -22,7 +22,10 @@ namespace Nexus.Web.Controllers.Admin;
 /// </para>
 /// </summary>
 [ApiController]
-[Route("api/admin")]
+// Under /admin, not /api/admin: the admin cookie is path-scoped to /admin, so a
+// request to /api/admin never carries it and is answered 401 for ever. See
+// DependencyInjection.Identity.cs and AdminCatalogueController.
+[Route("admin/api")]
 [Authorize(Policy = AdminPolicies.AdminOrStaff)]
 [AutoValidateAntiforgeryToken]
 public sealed class AdminEmailController(
