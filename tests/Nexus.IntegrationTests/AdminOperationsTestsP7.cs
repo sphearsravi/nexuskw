@@ -78,24 +78,30 @@ public sealed class AdminOperationsTestsP7(NexusApp app) : IDisposable
     {
         var client = _host.AsAdmin();
 
-        var before = await CurrentExpiryAsync();
+        /* Deliberately not linkExpiryDays or maxDownloads. Those two are on the public
+         * allow-list, other tests assert their seeded values through /api/settings/public,
+         * and that endpoint is served by a different host with its own sixty-second
+         * cache — so changing one here and changing it back can still be visible over
+         * there for a minute. This key is read by nothing else. */
+        var before = await CurrentThresholdAsync();
         var target = before == 9 ? 8 : 9;
 
         try
         {
             var response = await client.PutJsonAsync(
-                "/admin/api/settings/delivery.linkExpiryDays", new { value = target.ToString() });
+                "/admin/api/settings/delivery.distinctIpThreshold", new { value = target.ToString() });
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Equal(target, await CurrentExpiryAsync());
+            Assert.Equal(target, await CurrentThresholdAsync());
 
             using var scope = _host.Scope();
             Assert.True(await _host.Db(scope).AuditLogs.AnyAsync(a =>
-                a.Entity == "Setting" && a.EntityId == "delivery.linkExpiryDays" && a.Action == "setting.update"));
+                a.Entity == "Setting" && a.EntityId == "delivery.distinctIpThreshold" &&
+                a.Action == "setting.update"));
         }
         finally
         {
-            await client.PutJsonAsync("/admin/api/settings/delivery.linkExpiryDays",
+            await client.PutJsonAsync("/admin/api/settings/delivery.distinctIpThreshold",
                 new { value = before.ToString() });
         }
     }
@@ -439,11 +445,11 @@ public sealed class AdminOperationsTestsP7(NexusApp app) : IDisposable
 
     // ---- fixtures -------------------------------------------------------------
 
-    private async Task<int> CurrentExpiryAsync()
+    private async Task<int> CurrentThresholdAsync()
     {
         using var scope = _host.Scope();
         return await _host.Service<ISettingsReader>(scope)
-            .GetIntAsync(SettingKeys.LinkExpiryDays, 7, 1, 365);
+            .GetIntAsync(SettingKeys.DistinctIpThreshold, 4, 2, 50);
     }
 
     private async Task<int> PaidOrderAsync(string tag, decimal price, int bookId = 1)
